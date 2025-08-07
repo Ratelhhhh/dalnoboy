@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync"
 
+	"dalnoboy/internal"
 	"dalnoboy/internal/bot"
 )
 
@@ -26,15 +27,21 @@ func New(name string) *App {
 func (a *App) Run() error {
 	fmt.Printf("Приложение %s запущено\n", a.Name)
 
+	// Создание конфига
+	config := internal.NewConfig()
+	if err := config.Validate(); err != nil {
+		return fmt.Errorf("ошибка валидации конфига: %v", err)
+	}
+
 	// Инициализация админского бота
-	adminBot, err := bot.NewAdminBot()
+	adminBot, err := bot.NewAdminBot(config)
 	if err != nil {
 		return fmt.Errorf("ошибка инициализации админского бота: %v", err)
 	}
 	a.AdminBot = adminBot
 
 	// Инициализация бота для водителей
-	driverBot, err := bot.NewDriverBot()
+	driverBot, err := bot.NewDriverBot(config)
 	if err != nil {
 		return fmt.Errorf("ошибка инициализации бота для водителей: %v", err)
 	}

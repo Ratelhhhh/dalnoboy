@@ -2,7 +2,8 @@ package bot
 
 import (
 	"log"
-	"os"
+
+	"dalnoboy/internal"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -13,13 +14,8 @@ type AdminBot struct {
 }
 
 // NewAdminBot создает новый экземпляр админского бота
-func NewAdminBot() (*AdminBot, error) {
-	token := os.Getenv("ADMIN_BOT_TOKEN")
-	if token == "" {
-		panic("ADMIN_BOT_TOKEN не установлен в переменных окружения")
-	}
-
-	bot, err := tgbotapi.NewBotAPI(token)
+func NewAdminBot(config *internal.Config) (*AdminBot, error) {
+	bot, err := tgbotapi.NewBotAPI(config.AdminBotToken)
 	if err != nil {
 		return nil, err
 	}

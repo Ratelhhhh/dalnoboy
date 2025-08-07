@@ -2,7 +2,8 @@ package bot
 
 import (
 	"log"
-	"os"
+
+	"dalnoboy/internal"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -13,13 +14,8 @@ type DriverBot struct {
 }
 
 // NewDriverBot создает новый экземпляр бота для водителей
-func NewDriverBot() (*DriverBot, error) {
-	token := os.Getenv("DRIVER_BOT_TOKEN")
-	if token == "" {
-		panic("DRIVER_BOT_TOKEN не установлен в переменных окружения")
-	}
-
-	bot, err := tgbotapi.NewBotAPI(token)
+func NewDriverBot(config *internal.Config) (*DriverBot, error) {
+	bot, err := tgbotapi.NewBotAPI(config.DriverBotToken)
 	if err != nil {
 		return nil, err
 	}
