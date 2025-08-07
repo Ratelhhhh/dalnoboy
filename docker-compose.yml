@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  dalnoboy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: dalnoboy-app
+    restart: unless-stopped
+    environment:
+      - ADMIN_BOT_TOKEN=${ADMIN_BOT_TOKEN}
+      - DRIVER_BOT_TOKEN=${DRIVER_BOT_TOKEN}
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - dalnoboy-network
+
+networks:
+  dalnoboy-network:
+    driver: bridge 
