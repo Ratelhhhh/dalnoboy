@@ -15,7 +15,7 @@ type DriverBot struct {
 
 // NewDriverBot создает новый экземпляр бота для водителей
 func NewDriverBot(config *internal.Config) (*DriverBot, error) {
-	bot, err := tgbotapi.NewBotAPI(config.DriverBotToken)
+	bot, err := tgbotapi.NewBotAPI(config.Bot.DriverToken)
 	if err != nil {
 		return nil, err
 	}

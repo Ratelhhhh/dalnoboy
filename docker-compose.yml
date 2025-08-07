@@ -1,19 +1,41 @@
 version: '3.8'
 
 services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: dalnoboy-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: dalnoboy
+      POSTGRES_USER: dalnoboy
+      POSTGRES_PASSWORD: dalnoboy_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - dalnoboy-network
+
   dalnoboy:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: dalnoboy-app
     restart: unless-stopped
+    depends_on:
+      - postgres
     environment:
       - ADMIN_BOT_TOKEN=${ADMIN_BOT_TOKEN}
       - DRIVER_BOT_TOKEN=${DRIVER_BOT_TOKEN}
     volumes:
       - ./logs:/app/logs
+      - ./config.yaml:/app/config.yaml
     networks:
       - dalnoboy-network
+
+volumes:
+  postgres_data:
 
 networks:
   dalnoboy-network:

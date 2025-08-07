@@ -1,0 +1,6 @@
+database:
+  host: "postgres"
+  port: 5432
+  name: "dalnoboy"
+  user: "dalnoboy"
+  password: "dalnoboy_password" 

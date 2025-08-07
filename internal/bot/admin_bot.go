@@ -15,7 +15,7 @@ type AdminBot struct {
 
 // NewAdminBot создает новый экземпляр админского бота
 func NewAdminBot(config *internal.Config) (*AdminBot, error) {
-	bot, err := tgbotapi.NewBotAPI(config.AdminBotToken)
+	bot, err := tgbotapi.NewBotAPI(config.Bot.AdminToken)
 	if err != nil {
 		return nil, err
 	}

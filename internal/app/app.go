@@ -7,6 +7,7 @@ import (
 
 	"dalnoboy/internal"
 	"dalnoboy/internal/bot"
+	"dalnoboy/internal/database"
 )
 
 // App представляет основное приложение
@@ -14,6 +15,7 @@ type App struct {
 	Name      string
 	AdminBot  *bot.AdminBot
 	DriverBot *bot.DriverBot
+	Database  *database.Database
 }
 
 // New создает новый экземпляр приложения
@@ -28,9 +30,36 @@ func (a *App) Run() error {
 	fmt.Printf("Приложение %s запущено\n", a.Name)
 
 	// Создание конфига
-	config := internal.NewConfig()
+	config, err := internal.NewConfig()
+	if err != nil {
+		return fmt.Errorf("ошибка загрузки конфига: %v", err)
+	}
+
 	if err := config.Validate(); err != nil {
 		return fmt.Errorf("ошибка валидации конфига: %v", err)
+	}
+
+	// Подключение к базе данных
+	db, err := database.New(config)
+	if err != nil {
+		return fmt.Errorf("ошибка подключения к базе данных: %v", err)
+	}
+	a.Database = db
+	defer a.Database.Close()
+
+	// Получение статистики из базы данных
+	ordersCount, err := a.Database.GetOrdersCount()
+	if err != nil {
+		log.Printf("Ошибка получения количества заказов: %v", err)
+	} else {
+		log.Printf("📊 Количество заказов в базе данных: %d", ordersCount)
+	}
+
+	customersCount, err := a.Database.GetCustomersCount()
+	if err != nil {
+		log.Printf("Ошибка получения количества клиентов: %v", err)
+	} else {
+		log.Printf("👥 Количество клиентов в базе данных: %d", customersCount)
 	}
 
 	// Инициализация админского бота
