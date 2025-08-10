@@ -63,14 +63,14 @@ func (a *App) Run() error {
 	}
 
 	// Инициализация админского бота
-	adminBot, err := bot.NewAdminBot(config)
+	adminBot, err := bot.NewAdminBot(config, db)
 	if err != nil {
 		return fmt.Errorf("ошибка инициализации админского бота: %v", err)
 	}
 	a.AdminBot = adminBot
 
 	// Инициализация бота для водителей
-	driverBot, err := bot.NewDriverBot(config)
+	driverBot, err := bot.NewDriverBot(config, db)
 	if err != nil {
 		return fmt.Errorf("ошибка инициализации бота для водителей: %v", err)
 	}

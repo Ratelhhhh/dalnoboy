@@ -4,15 +4,37 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"time"
 
 	"dalnoboy/internal"
 
+	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 )
 
 // Database представляет подключение к базе данных
 type Database struct {
 	DB *sql.DB
+}
+
+// Order представляет заказ из базы данных
+type Order struct {
+	UUID          string     `json:"uuid"`
+	CustomerUUID  string     `json:"customer_uuid"`
+	Title         string     `json:"title"`
+	Description   string     `json:"description"`
+	WeightKg      float64    `json:"weight_kg"`
+	LengthCm      *float64   `json:"length_cm"`
+	WidthCm       *float64   `json:"width_cm"`
+	HeightCm      *float64   `json:"height_cm"`
+	FromLocation  *string    `json:"from_location"`
+	ToLocation    *string    `json:"to_location"`
+	Tags          []string   `json:"tags"`
+	Price         float64    `json:"price"`
+	AvailableFrom *time.Time `json:"available_from"`
+	CreatedAt     time.Time  `json:"created_at"`
+	CustomerName  string     `json:"customer_name"`
+	CustomerPhone string     `json:"customer_phone"`
 }
 
 // New создает новое подключение к базе данных
@@ -66,4 +88,73 @@ func (d *Database) GetCustomersCount() (int, error) {
 	}
 
 	return count, nil
+}
+
+// GetOrders возвращает все заказы с информацией о клиентах
+func (d *Database) GetOrders() ([]Order, error) {
+	query := `
+		SELECT 
+			o.uuid,
+			o.customer_uuid,
+			o.title,
+			o.description,
+			o.weight_kg,
+			o.length_cm,
+			o.width_cm,
+			o.height_cm,
+			o.from_location,
+			o.to_location,
+			o.tags,
+			o.price,
+			o.available_from,
+			o.created_at,
+			c.name as customer_name,
+			c.phone as customer_phone
+		FROM orders o
+		JOIN customers c ON o.customer_uuid = c.uuid
+		ORDER BY o.created_at DESC
+	`
+
+	rows, err := d.DB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса: %v", err)
+	}
+	defer rows.Close()
+
+	var orders []Order
+	for rows.Next() {
+		var order Order
+		var tags pq.StringArray
+
+		err := rows.Scan(
+			&order.UUID,
+			&order.CustomerUUID,
+			&order.Title,
+			&order.Description,
+			&order.WeightKg,
+			&order.LengthCm,
+			&order.WidthCm,
+			&order.HeightCm,
+			&order.FromLocation,
+			&order.ToLocation,
+			&tags,
+			&order.Price,
+			&order.AvailableFrom,
+			&order.CreatedAt,
+			&order.CustomerName,
+			&order.CustomerPhone,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
+		}
+
+		order.Tags = []string(tags)
+		orders = append(orders, order)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %v", err)
+	}
+
+	return orders, nil
 }
