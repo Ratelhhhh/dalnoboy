@@ -1,9 +1,13 @@
 package app
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 	"sync"
+	"time"
 
 	"dalnoboy/internal"
 	"dalnoboy/internal/bot"
@@ -12,10 +16,18 @@ import (
 
 // App представляет основное приложение
 type App struct {
-	Name      string
-	AdminBot  *bot.AdminBot
-	DriverBot *bot.DriverBot
-	Database  *database.Database
+	Name       string
+	AdminBot   *bot.AdminBot
+	DriverBot  *bot.DriverBot
+	Database   *database.Database
+	HTTPServer *http.Server
+}
+
+// HealthResponse представляет ответ health check
+type HealthResponse struct {
+	Status    string    `json:"status"`
+	Timestamp time.Time `json:"timestamp"`
+	AppName   string    `json:"app_name"`
 }
 
 // New создает новый экземпляр приложения
@@ -23,6 +35,33 @@ func New(name string) *App {
 	return &App{
 		Name: name,
 	}
+}
+
+// healthCheckHandler обрабатывает health check запросы
+func (a *App) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
+	response := HealthResponse{
+		Status:    "ok",
+		Timestamp: time.Now(),
+		AppName:   a.Name,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(response)
+}
+
+// startHTTPServer запускает HTTP сервер
+func (a *App) startHTTPServer() error {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", a.healthCheckHandler)
+
+	a.HTTPServer = &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
+	}
+
+	log.Printf("🌐 HTTP сервер запущен на порту 8080")
+	return a.HTTPServer.ListenAndServe()
 }
 
 // Run запускает приложение
@@ -76,7 +115,7 @@ func (a *App) Run() error {
 	}
 	a.DriverBot = driverBot
 
-	// Запуск ботов в отдельных горутинах
+	// Запуск ботов и HTTP сервера в отдельных горутинах
 	var wg sync.WaitGroup
 
 	wg.Add(1)
@@ -95,8 +134,26 @@ func (a *App) Run() error {
 		}
 	}()
 
-	fmt.Println("Оба бота запущены и работают...")
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := a.startHTTPServer(); err != nil && err != http.ErrServerClosed {
+			log.Printf("Ошибка HTTP сервера: %v", err)
+		}
+	}()
+
+	fmt.Println("Оба бота и HTTP сервер запущены и работают...")
 	wg.Wait()
 
+	return nil
+}
+
+// Shutdown gracefully завершает работу приложения
+func (a *App) Shutdown(ctx context.Context) error {
+	if a.HTTPServer != nil {
+		if err := a.HTTPServer.Shutdown(ctx); err != nil {
+			log.Printf("Ошибка завершения HTTP сервера: %v", err)
+		}
+	}
 	return nil
 }
