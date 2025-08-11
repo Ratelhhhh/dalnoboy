@@ -50,10 +50,30 @@ func (a *App) healthCheckHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(response)
 }
 
+// getOrdersHandler обрабатывает запросы на получение всех заказов
+func (a *App) getOrdersHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Метод не поддерживается", http.StatusMethodNotAllowed)
+		return
+	}
+
+	orders, err := a.Database.GetOrders()
+	if err != nil {
+		log.Printf("Ошибка получения заказов: %v", err)
+		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(orders)
+}
+
 // startHTTPServer запускает HTTP сервер
 func (a *App) startHTTPServer() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", a.healthCheckHandler)
+	mux.HandleFunc("/orders", a.getOrdersHandler)
 
 	a.HTTPServer = &http.Server{
 		Addr:    ":8080",
