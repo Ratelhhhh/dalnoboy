@@ -12,15 +12,17 @@ import (
 	"dalnoboy/internal"
 	"dalnoboy/internal/bot"
 	"dalnoboy/internal/database"
+	"dalnoboy/internal/service"
 )
 
 // App представляет основное приложение
 type App struct {
-	Name       string
-	AdminBot   *bot.AdminBot
-	DriverBot  *bot.DriverBot
-	Database   *database.Database
-	HTTPServer *http.Server
+	Name         string
+	AdminBot     *bot.AdminBot
+	DriverBot    *bot.DriverBot
+	Database     *database.Database
+	OrderService service.OrderService
+	HTTPServer   *http.Server
 }
 
 // HealthResponse представляет ответ health check
@@ -57,7 +59,7 @@ func (a *App) getOrdersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orders, err := a.Database.GetOrders()
+	orders, err := a.OrderService.GetAllOrders()
 	if err != nil {
 		log.Printf("Ошибка получения заказов: %v", err)
 		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)
@@ -106,6 +108,9 @@ func (a *App) Run() error {
 	}
 	a.Database = db
 	defer a.Database.Close()
+
+	// Инициализация сервиса заказов
+	a.OrderService = service.NewOrderService(db)
 
 	// Инициализация админского бота
 	adminBot, err := bot.NewAdminBot(config, db)

@@ -7,14 +7,17 @@ import (
 
 	"dalnoboy/internal"
 	"dalnoboy/internal/database"
+	"dalnoboy/internal/domain"
+	"dalnoboy/internal/service"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 // AdminBot представляет админского бота
 type AdminBot struct {
-	bot      *tgbotapi.BotAPI
-	database *database.Database
+	bot          *tgbotapi.BotAPI
+	database     *database.Database
+	orderService service.OrderService
 }
 
 // NewAdminBot создает новый экземпляр админского бота
@@ -27,8 +30,9 @@ func NewAdminBot(config *internal.Config, db *database.Database) (*AdminBot, err
 	log.Printf("Админский бот %s запущен", bot.Self.UserName)
 
 	return &AdminBot{
-		bot:      bot,
-		database: db,
+		bot:          bot,
+		database:     db,
+		orderService: service.NewOrderService(db),
 	}, nil
 }
 
@@ -50,7 +54,7 @@ func (ab *AdminBot) Start() error {
 }
 
 // formatOrders форматирует заказы для отображения с ID
-func (ab *AdminBot) formatOrders(orders []database.Order) string {
+func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 	if len(orders) == 0 {
 		return "📋 Заказов пока нет"
 	}
@@ -127,7 +131,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 			log.Printf("Ошибка получения количества заказов: %v", err)
 			ordersCount = -1
 		}
-		
+
 		customersCount, err := ab.database.GetCustomersCount()
 		if err != nil {
 			log.Printf("Ошибка получения количества клиентов: %v", err)
@@ -140,8 +144,8 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 			response = "⚠️ Система работает, но есть проблемы с базой данных"
 		}
 	case "/orders", "📋 Заказы":
-		// Получаем заказы из базы данных
-		orders, err := ab.database.GetOrders()
+		// Получаем заказы через сервис
+		orders, err := ab.orderService.GetAllOrders()
 		if err != nil {
 			log.Printf("Ошибка получения заказов: %v", err)
 			response = "❌ Ошибка получения заказов из базы данных"

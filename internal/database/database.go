@@ -4,9 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"time"
 
 	"dalnoboy/internal"
+	"dalnoboy/internal/domain"
 
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
@@ -17,25 +17,9 @@ type Database struct {
 	DB *sql.DB
 }
 
-// Order представляет заказ из базы данных
-type Order struct {
-	UUID          string     `json:"uuid"`
-	CustomerUUID  string     `json:"customer_uuid"`
-	Title         string     `json:"title"`
-	Description   string     `json:"description"`
-	WeightKg      float64    `json:"weight_kg"`
-	LengthCm      *float64   `json:"length_cm"`
-	WidthCm       *float64   `json:"width_cm"`
-	HeightCm      *float64   `json:"height_cm"`
-	FromLocation  *string    `json:"from_location"`
-	ToLocation    *string    `json:"to_location"`
-	Tags          []string   `json:"tags"`
-	Price         float64    `json:"price"`
-	AvailableFrom *time.Time `json:"available_from"`
-	CreatedAt     time.Time  `json:"created_at"`
-	CustomerName  string     `json:"customer_name"`
-	CustomerPhone string     `json:"customer_phone"`
-}
+// Ensure Database implements OrderRepository and CustomerRepository
+var _ domain.OrderRepository = (*Database)(nil)
+var _ domain.CustomerRepository = (*Database)(nil)
 
 // New создает новое подключение к базе данных
 func New(config *internal.Config) (*Database, error) {
@@ -90,8 +74,8 @@ func (d *Database) GetCustomersCount() (int, error) {
 	return count, nil
 }
 
-// GetOrders возвращает все заказы с информацией о клиентах
-func (d *Database) GetOrders() ([]Order, error) {
+// GetAllOrders возвращает все заказы с информацией о клиентах
+func (d *Database) GetAllOrders() ([]domain.Order, error) {
 	query := `
 		SELECT 
 			o.uuid,
@@ -121,9 +105,9 @@ func (d *Database) GetOrders() ([]Order, error) {
 	}
 	defer rows.Close()
 
-	var orders []Order
+	var orders []domain.Order
 	for rows.Next() {
-		var order Order
+		var order domain.Order
 		var tags pq.StringArray
 
 		err := rows.Scan(

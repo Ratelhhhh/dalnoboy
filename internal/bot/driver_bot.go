@@ -7,6 +7,8 @@ import (
 
 	"dalnoboy/internal"
 	"dalnoboy/internal/database"
+	"dalnoboy/internal/domain"
+	"dalnoboy/internal/service"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -62,8 +64,9 @@ func filterMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 
 // DriverBot представляет бота для водителей
 type DriverBot struct {
-	bot      *tgbotapi.BotAPI
-	database *database.Database
+	bot          *tgbotapi.BotAPI
+	database     *database.Database
+	orderService service.OrderService
 }
 
 // NewDriverBot создает новый экземпляр бота для водителей
@@ -76,8 +79,9 @@ func NewDriverBot(config *internal.Config, db *database.Database) (*DriverBot, e
 	log.Printf("Бот для водителей %s запущен", bot.Self.UserName)
 
 	return &DriverBot{
-		bot:      bot,
-		database: db,
+		bot:          bot,
+		database:     db,
+		orderService: service.NewOrderService(db),
 	}, nil
 }
 
@@ -99,7 +103,7 @@ func (db *DriverBot) Start() error {
 }
 
 // formatOrders форматирует заказы для отображения без ID
-func (db *DriverBot) formatOrders(orders []database.Order) string {
+func (db *DriverBot) formatOrders(orders []domain.Order) string {
 	if len(orders) == 0 {
 		return "📋 Заказов пока нет"
 	}
@@ -168,8 +172,8 @@ func (db *DriverBot) handleMessage(message *tgbotapi.Message) {
 	case "/help", "❓ Помощь":
 		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/orders - Посмотреть заказы\n/profile - Мой профиль"
 	case "/orders", "📋 Заказы":
-		// Получаем заказы из базы данных
-		orders, err := db.database.GetOrders()
+		// Получаем заказы через сервис
+		orders, err := db.orderService.GetAllOrders()
 		if err != nil {
 			log.Printf("Ошибка получения заказов: %v", err)
 			response = "❌ Ошибка получения заказов из базы данных"
