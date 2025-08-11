@@ -66,6 +66,7 @@ func (a *App) startHTTPServer() error {
 
 // Run запускает приложение
 func (a *App) Run() error {
+
 	fmt.Printf("Приложение %s запущено\n", a.Name)
 
 	// Создание конфига
@@ -85,21 +86,6 @@ func (a *App) Run() error {
 	}
 	a.Database = db
 	defer a.Database.Close()
-
-	// Получение статистики из базы данных
-	ordersCount, err := a.Database.GetOrdersCount()
-	if err != nil {
-		log.Printf("Ошибка получения количества заказов: %v", err)
-	} else {
-		log.Printf("📊 Количество заказов в базе данных: %d", ordersCount)
-	}
-
-	customersCount, err := a.Database.GetCustomersCount()
-	if err != nil {
-		log.Printf("Ошибка получения количества клиентов: %v", err)
-	} else {
-		log.Printf("👥 Количество клиентов в базе данных: %d", customersCount)
-	}
 
 	// Инициализация админского бота
 	adminBot, err := bot.NewAdminBot(config, db)
