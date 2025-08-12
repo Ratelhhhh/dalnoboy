@@ -11,6 +11,7 @@ import (
 
 	"dalnoboy/internal"
 	"dalnoboy/internal/bot"
+	"dalnoboy/internal/cache"
 	"dalnoboy/internal/database"
 	"dalnoboy/internal/service"
 )
@@ -21,6 +22,7 @@ type App struct {
 	AdminBot     *bot.AdminBot
 	DriverBot    *bot.DriverBot
 	Database     *database.Database
+	Cache        cache.Cache
 	OrderService service.OrderService
 	HTTPServer   *http.Server
 }
@@ -96,6 +98,20 @@ func (a *App) Run() error {
 	}
 	a.Database = db
 	defer a.Database.Close()
+
+	// Инициализация Redis кеша
+	cacheFactory := cache.NewFactory()
+	redisCache, err := cacheFactory.Create(cache.RedisCacheType, cache.RedisConfig{
+		Host:     config.Redis.Host,
+		Port:     config.Redis.Port,
+		Password: config.Redis.Password,
+		DB:       config.Redis.DB,
+	})
+	if err != nil {
+		return fmt.Errorf("ошибка инициализации Redis кеша: %v", err)
+	}
+	a.Cache = redisCache
+	defer a.Cache.Close()
 
 	// Инициализация сервиса заказов
 	a.OrderService = service.NewOrderService(db)

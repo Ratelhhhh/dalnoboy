@@ -1,7 +1,13 @@
 database:
-  host: "127.0.0.1"
+  host: "localhost"
   port: 5432
   name: "dalnoboy"
   user: "dalnoboy"
   password: "dalnoboy_password"
+
+redis:
+  host: "localhost"
+  port: 6379
+  password: ""
+  db: 0
 

@@ -22,6 +22,23 @@ services:
       timeout: 3s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: dalnoboy-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - dalnoboy-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    command: redis-server --appendonly yes
+
   dalnoboy:
     build:
       context: .
@@ -31,12 +48,17 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
       - ADMIN_BOT_TOKEN=${ADMIN_BOT_TOKEN}
       - DRIVER_BOT_TOKEN=${DRIVER_BOT_TOKEN}
       - CONFIG_PATH=/app/config.yaml
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DOCKER_ENV=true
     volumes:
       - ./logs:/app/logs
       - ./config.yaml:/app/config.yaml
@@ -52,6 +74,7 @@ services:
 
 volumes:
   postgres_data:
+  redis_data:
 
 networks:
   dalnoboy-network:

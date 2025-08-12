@@ -1,6 +1,13 @@
+# Конфигурация для Docker Compose
 database:
-  host: "postgres"
+  host: "postgres"  # Имя сервиса в Docker Compose
   port: 5432
   name: "dalnoboy"
   user: "dalnoboy"
-  password: "dalnoboy_password" 
+  password: "dalnoboy_password"
+
+redis:
+  host: "redis"     # Имя сервиса в Docker Compose
+  port: 6379
+  password: ""
+  db: 0 
