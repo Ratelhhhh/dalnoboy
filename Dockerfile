@@ -35,8 +35,14 @@ WORKDIR /app
 # Копируем бинарный файл из этапа сборки
 COPY --from=builder /app/dalnoboy .
 
-# Меняем владельца файла
-RUN chown appuser:appgroup dalnoboy
+# Копируем статические файлы сайта и конфиг
+COPY index.html ./
+COPY style.css ./
+COPY script.js ./
+COPY config.yaml ./
+
+# Меняем владельца файлов
+RUN chown -R appuser:appgroup /app
 
 # Переключаемся на непривилегированного пользователя
 USER appuser
