@@ -16,6 +16,11 @@ services:
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - dalnoboy-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dalnoboy -d dalnoboy"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   dalnoboy:
     build:
@@ -24,7 +29,8 @@ services:
     container_name: dalnoboy-app
     restart: unless-stopped
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "8080:8080"
     environment:
@@ -34,6 +40,13 @@ services:
     volumes:
       - ./logs:/app/logs
       - ./config.yaml:/app/config.yaml
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
+    extra_hosts:
+      - "api.telegram.org:149.154.167.220"
+      - "api.telegram.org:149.154.167.221"
+      - "api.telegram.org:149.154.167.222"
     networks:
       - dalnoboy-network
 
@@ -42,4 +55,4 @@ volumes:
 
 networks:
   dalnoboy-network:
-    driver: bridge 
+    driver: bridge
