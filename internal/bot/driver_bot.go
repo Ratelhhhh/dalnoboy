@@ -13,55 +13,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// mainMenuKeyboard возвращает главное меню с одной кнопкой "Заказы"
-func mainMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
-	return tgbotapi.ReplyKeyboardMarkup{
-		Keyboard: [][]tgbotapi.KeyboardButton{
-			{
-				{Text: "📋 Заказы"},
-			},
-		},
-		ResizeKeyboard:  true,
-		OneTimeKeyboard: false,
-	}
-}
-
-// ordersMenuKeyboard возвращает меню для раздела заказов
-func ordersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
-	return tgbotapi.ReplyKeyboardMarkup{
-		Keyboard: [][]tgbotapi.KeyboardButton{
-			{
-				{Text: "⚙️ Фильтр"},
-				{Text: "⬅️ Назад"},
-			},
-		},
-		ResizeKeyboard:  true,
-		OneTimeKeyboard: false,
-	}
-}
-
-// filterMenuKeyboard возвращает меню настройки фильтров
-func filterMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
-	return tgbotapi.ReplyKeyboardMarkup{
-		Keyboard: [][]tgbotapi.KeyboardButton{
-			{
-				{Text: "📍 Маршрут"},
-				{Text: "💰 Цена"},
-			},
-			{
-				{Text: "📅 Дата"},
-				{Text: "📦 Тип груза"},
-			},
-			{
-				{Text: "♻️ Сбросить"},
-				{Text: "⬅️ Назад"},
-			},
-		},
-		ResizeKeyboard:  true,
-		OneTimeKeyboard: false,
-	}
-}
-
 // DriverBot представляет бота для водителей
 type DriverBot struct {
 	bot          *tgbotapi.BotAPI
@@ -168,7 +119,7 @@ func (db *DriverBot) handleMessage(message *tgbotapi.Message) {
 	switch text {
 	case "/start":
 		response = "Добро пожаловать! Вы водитель. Выберите действие."
-		keyboard = mainMenuKeyboard()
+		keyboard = driverMainMenuKeyboard()
 	case "/help", "❓ Помощь":
 		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/orders - Посмотреть заказы\n/profile - Мой профиль"
 	case "/orders", "📋 Заказы":
@@ -201,7 +152,7 @@ func (db *DriverBot) handleMessage(message *tgbotapi.Message) {
 		keyboard = filterMenuKeyboard()
 	case "⬅️ Назад":
 		response = "Главное меню"
-		keyboard = mainMenuKeyboard()
+		keyboard = driverMainMenuKeyboard()
 	default:
 		response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд."
 	}

@@ -8,6 +8,7 @@ import (
 	"dalnoboy/internal"
 	"dalnoboy/internal/domain"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	_ "github.com/lib/pq"
 )
@@ -17,9 +18,10 @@ type Database struct {
 	DB *sql.DB
 }
 
-// Ensure Database implements OrderRepository and CustomerRepository
+// Ensure Database implements OrderRepository, CustomerRepository and UserRepository
 var _ domain.OrderRepository = (*Database)(nil)
 var _ domain.CustomerRepository = (*Database)(nil)
+var _ domain.UserRepository = (*Database)(nil)
 
 // New создает новое подключение к базе данных
 func New(config *internal.Config) (*Database, error) {
@@ -141,4 +143,149 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 	}
 
 	return orders, nil
+}
+
+// CreateUser создает нового пользователя в базе данных
+func (d *Database) CreateUser(user *domain.User) error {
+	query := `
+		INSERT INTO customers (uuid, name, phone, telegram_id, telegram_tag, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6)
+	`
+
+	_, err := d.DB.Exec(query, user.UUID.String(), user.Name, user.Phone, user.TelegramID, user.TelegramTag, user.CreatedAt)
+	if err != nil {
+		return fmt.Errorf("ошибка создания пользователя: %v", err)
+	}
+
+	return nil
+}
+
+// GetUserByPhone возвращает пользователя по номеру телефона
+func (d *Database) GetUserByPhone(phone string) (*domain.User, error) {
+	query := `
+		SELECT uuid, name, phone, telegram_id, telegram_tag, created_at
+		FROM customers
+		WHERE phone = $1
+	`
+
+	var user domain.User
+	var uuidStr string
+	err := d.DB.QueryRow(query, phone).Scan(
+		&uuidStr,
+		&user.Name,
+		&user.Phone,
+		&user.TelegramID,
+		&user.TelegramTag,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Пользователь не найден
+		}
+		return nil, fmt.Errorf("ошибка получения пользователя по телефону: %v", err)
+	}
+
+	// Парсим UUID из строки
+	userUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга UUID: %v", err)
+	}
+	user.UUID = userUUID
+
+	return &user, nil
+}
+
+// GetUserByTelegramID возвращает пользователя по Telegram ID
+func (d *Database) GetUserByTelegramID(telegramID int64) (*domain.User, error) {
+	query := `
+		SELECT uuid, name, phone, telegram_id, telegram_tag, created_at
+		FROM customers
+		WHERE telegram_id = $1
+	`
+
+	var user domain.User
+	var uuidStr string
+	err := d.DB.QueryRow(query, telegramID).Scan(
+		&uuidStr,
+		&user.Name,
+		&user.Phone,
+		&user.TelegramID,
+		&user.TelegramTag,
+		&user.CreatedAt,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Пользователь не найден
+		}
+		return nil, fmt.Errorf("ошибка получения пользователя по Telegram ID: %v", err)
+	}
+
+	// Парсим UUID из строки
+	userUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга UUID: %v", err)
+	}
+	user.UUID = userUUID
+
+	return &user, nil
+}
+
+// GetAllUsers возвращает всех пользователей
+func (d *Database) GetAllUsers() ([]domain.User, error) {
+	query := `
+		SELECT uuid, name, phone, telegram_id, telegram_tag, created_at
+		FROM customers
+		ORDER BY created_at DESC
+	`
+
+	rows, err := d.DB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса: %v", err)
+	}
+	defer rows.Close()
+
+	var users []domain.User
+	for rows.Next() {
+		var user domain.User
+		var uuidStr string
+		err := rows.Scan(
+			&uuidStr,
+			&user.Name,
+			&user.Phone,
+			&user.TelegramID,
+			&user.TelegramTag,
+			&user.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
+		}
+
+		// Парсим UUID из строки
+		userUUID, err := uuid.Parse(uuidStr)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка парсинга UUID: %v", err)
+		}
+		user.UUID = userUUID
+
+		users = append(users, user)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %v", err)
+	}
+
+	return users, nil
+}
+
+// GetUsersCount возвращает количество пользователей в базе данных
+func (d *Database) GetUsersCount() (int, error) {
+	var count int
+	query := "SELECT COUNT(*) FROM customers"
+
+	err := d.DB.QueryRow(query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка получения количества пользователей: %v", err)
+	}
+
+	return count, nil
 }

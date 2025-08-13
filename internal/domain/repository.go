@@ -10,3 +10,12 @@ type OrderRepository interface {
 type CustomerRepository interface {
 	GetCustomersCount() (int, error)
 }
+
+// UserRepository определяет интерфейс для работы с пользователями
+type UserRepository interface {
+	CreateUser(user *User) error
+	GetUserByPhone(phone string) (*User, error)
+	GetUserByTelegramID(telegramID int64) (*User, error)
+	GetAllUsers() ([]User, error)
+	GetUsersCount() (int, error)
+}

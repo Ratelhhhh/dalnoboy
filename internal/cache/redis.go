@@ -99,4 +99,4 @@ func (r *RedisCache) TTL(ctx context.Context, key string) (time.Duration, error)
 
 func (r *RedisCache) Close() error {
 	return r.client.Close()
-} 
+}

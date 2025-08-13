@@ -18,6 +18,7 @@ type AdminBot struct {
 	bot          *tgbotapi.BotAPI
 	database     *database.Database
 	orderService service.OrderService
+	userService  *service.UserService
 }
 
 // NewAdminBot создает новый экземпляр админского бота
@@ -33,6 +34,7 @@ func NewAdminBot(config *internal.Config, db *database.Database) (*AdminBot, err
 		bot:          bot,
 		database:     db,
 		orderService: service.NewOrderService(db),
+		userService:  service.NewUserService(db),
 	}, nil
 }
 
@@ -110,6 +112,111 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 	return result.String()
 }
 
+// formatUsers форматирует пользователей для отображения
+func (ab *AdminBot) formatUsers(users []domain.User) string {
+	if len(users) == 0 {
+		return "👥 Пользователей пока нет"
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("👥 Список пользователей (%d):\n\n", len(users)))
+
+	for i, user := range users {
+		// Форматируем Telegram ID
+		telegramIDStr := "-"
+		if user.TelegramID != nil {
+			telegramIDStr = fmt.Sprintf("%d", *user.TelegramID)
+		}
+
+		// Форматируем Telegram Tag
+		telegramTagStr := "-"
+		if user.TelegramTag != nil {
+			telegramTagStr = *user.TelegramTag
+		}
+
+		result.WriteString(fmt.Sprintf("%d. 👤 %s\n", i+1, user.Name))
+		result.WriteString(fmt.Sprintf("   📱 %s\n", user.Phone))
+		result.WriteString(fmt.Sprintf("   🆔 Telegram ID: %s\n", telegramIDStr))
+		result.WriteString(fmt.Sprintf("   🏷️ Telegram Tag: %s\n", telegramTagStr))
+		result.WriteString(fmt.Sprintf("   📅 Создан: %s\n", user.CreatedAt.Format("02.01.2006 15:04")))
+		result.WriteString(fmt.Sprintf("   🆔 UUID: %s\n", user.UUID.String()))
+		result.WriteString("\n")
+	}
+
+	return result.String()
+}
+
+// parseUserMessage парсит сообщение с данными пользователя
+// Формат: ADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag
+func (ab *AdminBot) parseUserMessage(text string) (*domain.User, error) {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	if len(lines) < 3 {
+		return nil, fmt.Errorf("недостаточно данных. Нужно минимум: имя, телефон")
+	}
+
+	// Проверяем ключ
+	if lines[0] != "ADD_USER" {
+		return nil, fmt.Errorf("неверный ключ. Ожидается ADD_USER")
+	}
+
+	name := strings.TrimSpace(lines[1])
+	phone := strings.TrimSpace(lines[2])
+
+	if name == "" || phone == "" {
+		return nil, fmt.Errorf("имя и телефон не могут быть пустыми")
+	}
+
+	var telegramID *int64
+	var telegramTag *string
+
+	// Telegram ID (если указан)
+	if len(lines) > 3 && strings.TrimSpace(lines[3]) != "-" && strings.TrimSpace(lines[3]) != "" {
+		if id, err := parseTelegramID(lines[3]); err == nil {
+			telegramID = &id
+		}
+	}
+
+	// Telegram Tag (если указан)
+	if len(lines) > 4 && strings.TrimSpace(lines[4]) != "-" && strings.TrimSpace(lines[4]) != "" {
+		tag := strings.TrimSpace(lines[4])
+		if tag != "" {
+			telegramTag = &tag
+		}
+	}
+
+	user := &domain.User{
+		Name:        name,
+		Phone:       phone,
+		TelegramID:  telegramID,
+		TelegramTag: telegramTag,
+	}
+
+	return user, nil
+}
+
+// parseTelegramID парсит Telegram ID из строки
+func parseTelegramID(s string) (int64, error) {
+	var id int64
+	_, err := fmt.Sscanf(strings.TrimSpace(s), "%d", &id)
+	return id, err
+}
+
+// formatTelegramID форматирует Telegram ID для отображения
+func formatTelegramID(id *int64) string {
+	if id == nil {
+		return "-"
+	}
+	return fmt.Sprintf("%d", *id)
+}
+
+// formatTelegramTag форматирует Telegram Tag для отображения
+func formatTelegramTag(tag *string) string {
+	if tag == nil {
+		return "-"
+	}
+	return *tag
+}
+
 // handleMessage обрабатывает входящие сообщения
 func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 	text := message.Text
@@ -121,9 +228,9 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 	switch text {
 	case "/start":
 		response = "Добро пожаловать в админскую панель! Выберите действие."
-		keyboard = mainMenuKeyboard()
+		keyboard = adminMainMenuKeyboard()
 	case "/help", "❓ Помощь":
-		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/filter - Настроить фильтры"
+		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/users - Посмотреть пользователей\n/filter - Настроить фильтры"
 	case "/status":
 		// Получаем статистику из базы данных
 		ordersCount, err := ab.database.GetOrdersCount()
@@ -153,6 +260,16 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 			response = ab.formatOrders(orders)
 		}
 		keyboard = ordersMenuKeyboard()
+	case "/users", "👥 Пользователи":
+		// Получаем пользователей через сервис
+		users, err := ab.userService.GetAllUsers()
+		if err != nil {
+			log.Printf("Ошибка получения пользователей: %v", err)
+			response = "❌ Ошибка получения пользователей из базы данных"
+		} else {
+			response = ab.formatUsers(users)
+		}
+		keyboard = usersMenuKeyboard()
 	case "/filter", "⚙️ Фильтр":
 		response = "Вы в меню фильтров. Выберите, что настроить:"
 		keyboard = filterMenuKeyboard()
@@ -173,9 +290,30 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		keyboard = filterMenuKeyboard()
 	case "⬅️ Назад":
 		response = "Главное меню"
-		keyboard = mainMenuKeyboard()
+		keyboard = adminMainMenuKeyboard()
 	default:
-		response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд."
+		// Проверяем, не является ли сообщение данными для добавления пользователя
+		if strings.HasPrefix(text, "ADD_USER") {
+			user, err := ab.parseUserMessage(text)
+			if err != nil {
+				response = fmt.Sprintf("❌ Ошибка парсинга данных пользователя: %v\n\nПример правильного формата:\nADD_USER\nИван Иванов\n+79001234567\n123456789\n@ivan_username", err)
+			} else {
+				// Создаем пользователя через сервис
+				createdUser, err := ab.userService.CreateUser(user.Name, user.Phone, user.TelegramID, user.TelegramTag)
+				if err != nil {
+					response = fmt.Sprintf("❌ Ошибка создания пользователя: %v", err)
+				} else {
+					response = fmt.Sprintf("✅ Пользователь успешно создан!\n\n👤 Имя: %s\n📱 Телефон: %s\n🆔 Telegram ID: %s\n🏷️ Telegram Tag: %s\n🆔 UUID: %s",
+						createdUser.Name,
+						createdUser.Phone,
+						formatTelegramID(createdUser.TelegramID),
+						formatTelegramTag(createdUser.TelegramTag),
+						createdUser.UUID)
+				}
+			}
+		} else {
+			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag"
+		}
 	}
 
 	msg := tgbotapi.NewMessage(chatID, response)
