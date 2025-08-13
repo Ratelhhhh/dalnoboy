@@ -93,7 +93,7 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 			tagsStr = strings.Join(order.Tags, ", ")
 		}
 
-		result.WriteString(fmt.Sprintf("%d. 🚚 Заказ #%s\n", i+1, order.UUID[:8]))
+		result.WriteString(fmt.Sprintf("%d. 🚚 Заказ #`%s`\n", i+1, order.UUID[:8]))
 		result.WriteString(fmt.Sprintf("   📝 %s\n", order.Title))
 		if order.Description != "" {
 			result.WriteString(fmt.Sprintf("   📄 %s\n", order.Description))
@@ -105,7 +105,7 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 		result.WriteString(fmt.Sprintf("   🏷️ %s\n", tagsStr))
 		result.WriteString(fmt.Sprintf("   💰 %.0f ₽\n", order.Price))
 		result.WriteString(fmt.Sprintf("   📅 %s\n", dateStr))
-		result.WriteString(fmt.Sprintf("   🆔 ID: %s\n", order.UUID))
+		result.WriteString(fmt.Sprintf("   🆔 ID: `%s`\n", order.UUID))
 		result.WriteString("\n")
 	}
 
@@ -135,11 +135,11 @@ func (ab *AdminBot) formatUsers(users []domain.User) string {
 		}
 
 		result.WriteString(fmt.Sprintf("%d. 👤 %s\n", i+1, user.Name))
-		result.WriteString(fmt.Sprintf("   📱 %s\n", user.Phone))
-		result.WriteString(fmt.Sprintf("   🆔 Telegram ID: %s\n", telegramIDStr))
-		result.WriteString(fmt.Sprintf("   🏷️ Telegram Tag: %s\n", telegramTagStr))
+		result.WriteString(fmt.Sprintf("   📱 `%s`\n", user.Phone))
+		result.WriteString(fmt.Sprintf("   🆔 Telegram ID: `%s`\n", telegramIDStr))
+		result.WriteString(fmt.Sprintf("   🏷️ Telegram Tag: `%s`\n", telegramTagStr))
 		result.WriteString(fmt.Sprintf("   📅 Создан: %s\n", user.CreatedAt.Format("02.01.2006 15:04")))
-		result.WriteString(fmt.Sprintf("   🆔 UUID: %s\n", user.UUID.String()))
+		result.WriteString(fmt.Sprintf("   🆔 UUID: `%s`\n", user.UUID.String()))
 		result.WriteString("\n")
 	}
 
@@ -303,7 +303,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 				if err != nil {
 					response = fmt.Sprintf("❌ Ошибка создания пользователя: %v", err)
 				} else {
-					response = fmt.Sprintf("✅ Пользователь успешно создан!\n\n👤 Имя: %s\n📱 Телефон: %s\n🆔 Telegram ID: %s\n🏷️ Telegram Tag: %s\n🆔 UUID: %s",
+					response = fmt.Sprintf("✅ Пользователь успешно создан!\n\n👤 Имя: %s\n📱 Телефон: `%s`\n🆔 Telegram ID: `%s`\n🏷️ Telegram Tag: `%s`\n🆔 UUID: `%s`",
 						createdUser.Name,
 						createdUser.Phone,
 						formatTelegramID(createdUser.TelegramID),
@@ -317,8 +317,12 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 	}
 
 	msg := tgbotapi.NewMessage(chatID, response)
+	msg.ParseMode = "Markdown"
 	if keyboard.Keyboard != nil {
 		msg.ReplyMarkup = keyboard
 	}
-	ab.bot.Send(msg)
+	_, err := ab.bot.Send(msg)
+	if err != nil {
+		log.Printf("Ошибка отправки сообщения: %v", err)
+	}
 }
