@@ -2,6 +2,7 @@ package domain
 
 // OrderRepository определяет интерфейс для работы с заказами
 type OrderRepository interface {
+	CreateOrder(order *Order) error
 	GetAllOrders() ([]Order, error)
 	GetActiveOrders() ([]Order, error)
 	GetOrdersByStatus(status string) ([]Order, error)

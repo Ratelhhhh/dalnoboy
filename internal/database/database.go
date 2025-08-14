@@ -460,3 +460,37 @@ func (d *Database) GetUsersCount() (int, error) {
 
 	return count, nil
 }
+
+// CreateOrder создает новый заказ в базе данных
+func (d *Database) CreateOrder(order *domain.Order) error {
+	query := `
+		INSERT INTO orders (
+			uuid, customer_uuid, title, description, weight_kg, 
+			length_cm, width_cm, height_cm, from_location, to_location, 
+			tags, price, available_from, status, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+	`
+
+	_, err := d.DB.Exec(query,
+		order.UUID,
+		order.CustomerUUID,
+		order.Title,
+		order.Description,
+		order.WeightKg,
+		order.LengthCm,
+		order.WidthCm,
+		order.HeightCm,
+		order.FromLocation,
+		order.ToLocation,
+		pq.Array(order.Tags),
+		order.Price,
+		order.AvailableFrom,
+		order.Status,
+		order.CreatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("ошибка создания заказа: %v", err)
+	}
+
+	return nil
+}

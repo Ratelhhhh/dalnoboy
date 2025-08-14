@@ -3,7 +3,9 @@ package bot
 import (
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
+	"time"
 
 	"dalnoboy/internal"
 	"dalnoboy/internal/database"
@@ -17,7 +19,7 @@ import (
 type AdminBot struct {
 	bot          *tgbotapi.BotAPI
 	database     *database.Database
-	orderService service.OrderService
+	orderService *service.OrderService
 	userService  *service.UserService
 }
 
@@ -203,11 +205,122 @@ func (ab *AdminBot) parseUserMessage(text string) (*domain.User, error) {
 	return user, nil
 }
 
+// parseOrderMessage парсит сообщение с данными заказа
+// Формат: ADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда\nКуда\nТеги\nЦена\nДата\nUUID клиента
+func (ab *AdminBot) parseOrderMessage(text string) (*domain.Order, error) {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	if len(lines) < 13 {
+		return nil, fmt.Errorf("недостаточно данных. Нужно 13 строк: ADD_ORDER + 12 полей")
+	}
+
+	// Проверяем ключ
+	if lines[0] != "ADD_ORDER" {
+		return nil, fmt.Errorf("неверный ключ. Ожидается ADD_ORDER")
+	}
+
+	title := strings.TrimSpace(lines[1])
+	description := strings.TrimSpace(lines[2])
+
+	if title == "" || description == "" {
+		return nil, fmt.Errorf("название и описание не могут быть пустыми")
+	}
+
+	// Парсим вес
+	weightKg, err := parseFloat(lines[3])
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга веса: %v", err)
+	}
+
+	// Парсим размеры (опционально)
+	lengthCm := parseOptionalFloat(lines[4])
+	widthCm := parseOptionalFloat(lines[5])
+	heightCm := parseOptionalFloat(lines[6])
+
+	// Парсим локации (опционально)
+	fromLocation := parseOptionalString(lines[7])
+	toLocation := parseOptionalString(lines[8])
+
+	// Парсим теги
+	var tags []string
+	if lines[9] != "-" && strings.TrimSpace(lines[9]) != "" {
+		tags = strings.Split(strings.TrimSpace(lines[9]), ",")
+		for i, tag := range tags {
+			tags[i] = strings.TrimSpace(tag)
+		}
+	}
+
+	// Парсим цену
+	price, err := parseFloat(lines[10])
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга цены: %v", err)
+	}
+
+	// Парсим дату (опционально)
+	availableFrom := parseOptionalDate(lines[11])
+
+	// Парсим UUID клиента
+	customerUUID := strings.TrimSpace(lines[12])
+	if customerUUID == "" {
+		return nil, fmt.Errorf("UUID клиента не может быть пустым")
+	}
+
+	order := &domain.Order{
+		Title:         title,
+		Description:   description,
+		WeightKg:      weightKg,
+		LengthCm:      lengthCm,
+		WidthCm:       widthCm,
+		HeightCm:      heightCm,
+		FromLocation:  fromLocation,
+		ToLocation:    toLocation,
+		Tags:          tags,
+		Price:         price,
+		AvailableFrom: availableFrom,
+		CustomerUUID:  customerUUID,
+	}
+
+	return order, nil
+}
+
 // parseTelegramID парсит Telegram ID из строки
-func parseTelegramID(s string) (int64, error) {
-	var id int64
-	_, err := fmt.Sscanf(strings.TrimSpace(s), "%d", &id)
-	return id, err
+func parseTelegramID(text string) (int64, error) {
+	return strconv.ParseInt(strings.TrimSpace(text), 10, 64)
+}
+
+// parseFloat парсит float64 из строки
+func parseFloat(text string) (float64, error) {
+	return strconv.ParseFloat(strings.TrimSpace(text), 64)
+}
+
+// parseOptionalFloat парсит опциональный float64 из строки
+func parseOptionalFloat(text string) *float64 {
+	if text == "-" || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	if val, err := parseFloat(text); err == nil {
+		return &val
+	}
+	return nil
+}
+
+// parseOptionalString парсит опциональную строку
+func parseOptionalString(text string) *string {
+	if text == "-" || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	val := strings.TrimSpace(text)
+	return &val
+}
+
+// parseOptionalDate парсит опциональную дату
+func parseOptionalDate(text string) *time.Time {
+	if text == "-" || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	if val, err := time.Parse("2006-01-02", strings.TrimSpace(text)); err == nil {
+		return &val
+	}
+	return nil
 }
 
 // formatTelegramID форматирует Telegram ID для отображения
@@ -239,7 +352,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		response = "Добро пожаловать в админскую панель! Выберите действие."
 		keyboard = adminMainMenuKeyboard()
 	case "/help", "❓ Помощь":
-		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/users - Посмотреть пользователей\n/filter - Настроить фильтры"
+		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/users - Посмотреть пользователей\n/filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда\nКуда\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
 	case "/status":
 		// Получаем статистику из базы данных
 		ordersCount, err := ab.database.GetOrdersCount()
@@ -280,6 +393,42 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		} else {
 			response = ab.formatOrders(orders)
 		}
+		keyboard = ordersMenuKeyboard()
+	case "➕ Создать заказ":
+		response = `📝 Создание нового заказа
+
+Для создания заказа используйте следующий формат:
+
+ADD_ORDER
+Название заказа
+Описание заказа
+Вес (кг)
+Длина (см) или -
+Ширина (см) или -
+Высота (см) или -
+Откуда или -
+Куда или -
+Теги через запятую или -
+Цена (руб)
+Дата доступности (YYYY-MM-DD) или -
+UUID клиента
+
+Пример:
+ADD_ORDER
+Доставка мебели
+Требуется доставка дивана и стола
+25.5
+200
+80
+60
+Москва
+Санкт-Петербург
+Мебель, Хрупкий
+15000
+2025-01-15
+12345678-1234-1234-1234-123456789abc
+
+Отправьте сообщение с данными заказа в указанном формате.`
 		keyboard = ordersMenuKeyboard()
 	case "/active_orders", "🟢 Активные заказы":
 		// Получаем только активные заказы
@@ -352,8 +501,42 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 						createdUser.UUID)
 				}
 			}
+		} else if strings.HasPrefix(text, "ADD_ORDER") {
+			// Парсим и создаем заказ
+			order, err := ab.parseOrderMessage(text)
+			if err != nil {
+				response = fmt.Sprintf("❌ Ошибка парсинга данных заказа: %v\n\nПроверьте формат и попробуйте снова.", err)
+			} else {
+				// Создаем заказ через сервис
+				createdOrder, err := ab.orderService.CreateOrder(
+					order.CustomerUUID,
+					order.Title,
+					order.Description,
+					order.WeightKg,
+					order.LengthCm,
+					order.WidthCm,
+					order.HeightCm,
+					order.FromLocation,
+					order.ToLocation,
+					order.Tags,
+					order.Price,
+					order.AvailableFrom,
+				)
+				if err != nil {
+					response = fmt.Sprintf("❌ Ошибка создания заказа: %v", err)
+				} else {
+					response = fmt.Sprintf("✅ Заказ успешно создан!\n\n📝 %s\n📄 %s\n⚖️ %.1f кг\n💰 %.0f ₽\n🆔 ID: %s",
+						createdOrder.Title,
+						createdOrder.Description,
+						createdOrder.WeightKg,
+						createdOrder.Price,
+						createdOrder.UUID)
+				}
+			}
+			// Сбрасываем состояние создания заказа
+			keyboard = ordersMenuKeyboard()
 		} else {
-			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда\nКуда\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
 		}
 
 		// Проверяем команды изменения статуса заказов

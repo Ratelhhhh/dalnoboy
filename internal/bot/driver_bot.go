@@ -17,7 +17,7 @@ import (
 type DriverBot struct {
 	bot          *tgbotapi.BotAPI
 	database     *database.Database
-	orderService service.OrderService
+	orderService *service.OrderService
 }
 
 // NewDriverBot создает новый экземпляр бота для водителей

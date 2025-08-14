@@ -34,6 +34,9 @@ func ordersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	return tgbotapi.ReplyKeyboardMarkup{
 		Keyboard: [][]tgbotapi.KeyboardButton{
 			{
+				{Text: "➕ Создать заказ"},
+			},
+			{
 				{Text: "🟢 Активные заказы"},
 				{Text: "🔴 Архивные заказы"},
 			},

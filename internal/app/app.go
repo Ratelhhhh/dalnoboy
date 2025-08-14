@@ -23,7 +23,7 @@ type App struct {
 	DriverBot    *bot.DriverBot
 	Database     *database.Database
 	Cache        cache.Cache
-	OrderService service.OrderService
+	OrderService *service.OrderService
 	HTTPServer   *http.Server
 }
 
