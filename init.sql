@@ -23,9 +23,11 @@ CREATE TABLE orders (
   tags           TEXT[]    NOT NULL DEFAULT '{}',
   price          NUMERIC   NOT NULL CHECK(price >= 0),
   available_from DATE,
+  status         TEXT      NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'archived')),
   created_at     TIMESTAMP NOT NULL DEFAULT now()
 );
 
 CREATE INDEX idx_orders_tags   ON orders USING GIN(tags);
 CREATE INDEX idx_orders_price  ON orders(price);
-CREATE INDEX idx_orders_weight ON orders(weight_kg); 
+CREATE INDEX idx_orders_weight ON orders(weight_kg);
+CREATE INDEX idx_orders_status ON orders(status); 

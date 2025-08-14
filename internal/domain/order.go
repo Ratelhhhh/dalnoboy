@@ -4,6 +4,11 @@ import (
 	"time"
 )
 
+const (
+	OrderStatusActive   = "active"
+	OrderStatusArchived = "archived"
+)
+
 // Order представляет доменную модель заказа
 type Order struct {
 	UUID          string     `json:"uuid"`
@@ -19,6 +24,7 @@ type Order struct {
 	Tags          []string   `json:"tags"`
 	Price         float64    `json:"price"`
 	AvailableFrom *time.Time `json:"available_from"`
+	Status        string     `json:"status"`
 	CreatedAt     time.Time  `json:"created_at"`
 	CustomerName  string     `json:"customer_name"`
 	CustomerPhone string     `json:"customer_phone"`

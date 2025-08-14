@@ -34,6 +34,24 @@ func ordersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	return tgbotapi.ReplyKeyboardMarkup{
 		Keyboard: [][]tgbotapi.KeyboardButton{
 			{
+				{Text: "🟢 Активные заказы"},
+				{Text: "🔴 Архивные заказы"},
+			},
+			{
+				{Text: "⚙️ Фильтр"},
+				{Text: "⬅️ Назад"},
+			},
+		},
+		ResizeKeyboard:  true,
+		OneTimeKeyboard: false,
+	}
+}
+
+// driverOrdersMenuKeyboard возвращает меню для раздела заказов водителей (без статусов)
+func driverOrdersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	return tgbotapi.ReplyKeyboardMarkup{
+		Keyboard: [][]tgbotapi.KeyboardButton{
+			{
 				{Text: "⚙️ Фильтр"},
 				{Text: "⬅️ Назад"},
 			},

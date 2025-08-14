@@ -93,6 +93,7 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 			o.tags,
 			o.price,
 			o.available_from,
+			o.status,
 			o.created_at,
 			c.name as customer_name,
 			c.phone as customer_phone
@@ -126,6 +127,7 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 			&tags,
 			&order.Price,
 			&order.AvailableFrom,
+			&order.Status,
 			&order.CreatedAt,
 			&order.CustomerName,
 			&order.CustomerPhone,
@@ -143,6 +145,175 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 	}
 
 	return orders, nil
+}
+
+// GetActiveOrders возвращает только активные заказы
+func (d *Database) GetActiveOrders() ([]domain.Order, error) {
+	query := `
+		SELECT 
+			o.uuid,
+			o.customer_uuid,
+			o.title,
+			o.description,
+			o.weight_kg,
+			o.length_cm,
+			o.width_cm,
+			o.height_cm,
+			o.from_location,
+			o.to_location,
+			o.tags,
+			o.price,
+			o.available_from,
+			o.status,
+			o.created_at,
+			c.name as customer_name,
+			c.phone as customer_phone
+		FROM orders o
+		JOIN customers c ON o.customer_uuid = c.uuid
+		WHERE o.status = 'active'
+		ORDER BY o.created_at DESC
+	`
+
+	rows, err := d.DB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса: %v", err)
+	}
+	defer rows.Close()
+
+	var orders []domain.Order
+	for rows.Next() {
+		var order domain.Order
+		var tags pq.StringArray
+
+		err := rows.Scan(
+			&order.UUID,
+			&order.CustomerUUID,
+			&order.Title,
+			&order.Description,
+			&order.WeightKg,
+			&order.LengthCm,
+			&order.WidthCm,
+			&order.HeightCm,
+			&order.FromLocation,
+			&order.ToLocation,
+			&tags,
+			&order.Price,
+			&order.AvailableFrom,
+			&order.Status,
+			&order.CreatedAt,
+			&order.CustomerName,
+			&order.CustomerPhone,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
+		}
+
+		order.Tags = []string(tags)
+		orders = append(orders, order)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %v", err)
+	}
+
+	return orders, nil
+}
+
+// GetOrdersByStatus возвращает заказы по указанному статусу
+func (d *Database) GetOrdersByStatus(status string) ([]domain.Order, error) {
+	query := `
+		SELECT 
+			o.uuid,
+			o.customer_uuid,
+			o.title,
+			o.description,
+			o.weight_kg,
+			o.length_cm,
+			o.width_cm,
+			o.height_cm,
+			o.from_location,
+			o.to_location,
+			o.tags,
+			o.price,
+			o.available_from,
+			o.status,
+			o.created_at,
+			c.name as customer_name,
+			c.phone as customer_phone
+		FROM orders o
+		JOIN customers c ON o.customer_uuid = c.uuid
+		WHERE o.status = $1
+		ORDER BY o.created_at DESC
+	`
+
+	rows, err := d.DB.Query(query, status)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса: %v", err)
+	}
+	defer rows.Close()
+
+	var orders []domain.Order
+	for rows.Next() {
+		var order domain.Order
+		var tags pq.StringArray
+
+		err := rows.Scan(
+			&order.UUID,
+			&order.CustomerUUID,
+			&order.Title,
+			&order.Description,
+			&order.WeightKg,
+			&order.LengthCm,
+			&order.WidthCm,
+			&order.HeightCm,
+			&order.FromLocation,
+			&order.ToLocation,
+			&tags,
+			&order.Price,
+			&order.AvailableFrom,
+			&order.Status,
+			&order.CreatedAt,
+			&order.CustomerName,
+			&order.CustomerPhone,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
+		}
+
+		order.Tags = []string(tags)
+		orders = append(orders, order)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %v", err)
+	}
+
+	return orders, nil
+}
+
+// GetActiveOrdersCount возвращает количество активных заказов
+func (d *Database) GetActiveOrdersCount() (int, error) {
+	var count int
+	query := "SELECT COUNT(*) FROM orders WHERE status = 'active'"
+
+	err := d.DB.QueryRow(query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка получения количества активных заказов: %v", err)
+	}
+
+	return count, nil
+}
+
+// UpdateOrderStatus обновляет статус заказа
+func (d *Database) UpdateOrderStatus(orderUUID string, status string) error {
+	query := "UPDATE orders SET status = $1 WHERE uuid = $2"
+
+	_, err := d.DB.Exec(query, status, orderUUID)
+	if err != nil {
+		return fmt.Errorf("ошибка обновления статуса заказа: %v", err)
+	}
+
+	return nil
 }
 
 // CreateUser создает нового пользователя в базе данных

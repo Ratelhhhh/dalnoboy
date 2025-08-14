@@ -121,17 +121,17 @@ func (db *DriverBot) handleMessage(message *tgbotapi.Message) {
 		response = "Добро пожаловать! Вы водитель. Выберите действие."
 		keyboard = driverMainMenuKeyboard()
 	case "/help", "❓ Помощь":
-		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/orders - Посмотреть заказы\n/profile - Мой профиль"
+		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/orders - Посмотреть заказы"
 	case "/orders", "📋 Заказы":
-		// Получаем заказы через сервис
-		orders, err := db.orderService.GetAllOrders()
+		// Получаем только активные заказы через сервис
+		orders, err := db.orderService.GetActiveOrders()
 		if err != nil {
-			log.Printf("Ошибка получения заказов: %v", err)
+			log.Printf("Ошибка получения активных заказов: %v", err)
 			response = "❌ Ошибка получения заказов из базы данных"
 		} else {
 			response = db.formatOrders(orders)
 		}
-		keyboard = ordersMenuKeyboard()
+		keyboard = driverOrdersMenuKeyboard()
 	case "/filter", "⚙️ Фильтр":
 		response = "Вы в меню фильтров. Выберите, что настроить:"
 		keyboard = filterMenuKeyboard()
@@ -161,5 +161,9 @@ func (db *DriverBot) handleMessage(message *tgbotapi.Message) {
 	if keyboard.Keyboard != nil {
 		msg.ReplyMarkup = keyboard
 	}
+
+	// Отключаем Markdown разметку для предотвращения ошибок
+	msg.ParseMode = ""
+
 	db.bot.Send(msg)
 }

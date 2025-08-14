@@ -62,7 +62,7 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 	}
 
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("📋 Список доступных заказов (%d):\n\n", len(orders)))
+	result.WriteString(fmt.Sprintf("📋 Список заказов (%d):\n\n", len(orders)))
 
 	for i, order := range orders {
 		// Форматируем дату
@@ -93,7 +93,16 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 			tagsStr = strings.Join(order.Tags, ", ")
 		}
 
-		result.WriteString(fmt.Sprintf("%d. 🚚 Заказ #`%s`\n", i+1, order.UUID[:8]))
+		// Форматируем статус
+		statusEmoji := "🟢"
+		statusText := "Активный"
+		if order.Status == "archived" {
+			statusEmoji = "🔴"
+			statusText = "Архивный"
+		}
+
+		result.WriteString(fmt.Sprintf("%d. 🚚 Заказ #%s\n", i+1, order.UUID[:8]))
+		result.WriteString(fmt.Sprintf("   %s %s\n", statusEmoji, statusText))
 		result.WriteString(fmt.Sprintf("   📝 %s\n", order.Title))
 		if order.Description != "" {
 			result.WriteString(fmt.Sprintf("   📄 %s\n", order.Description))
@@ -105,7 +114,7 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 		result.WriteString(fmt.Sprintf("   🏷️ %s\n", tagsStr))
 		result.WriteString(fmt.Sprintf("   💰 %.0f ₽\n", order.Price))
 		result.WriteString(fmt.Sprintf("   📅 %s\n", dateStr))
-		result.WriteString(fmt.Sprintf("   🆔 ID: `%s`\n", order.UUID))
+		result.WriteString(fmt.Sprintf("   🆔 ID: %s\n", order.UUID))
 		result.WriteString("\n")
 	}
 
@@ -135,11 +144,11 @@ func (ab *AdminBot) formatUsers(users []domain.User) string {
 		}
 
 		result.WriteString(fmt.Sprintf("%d. 👤 %s\n", i+1, user.Name))
-		result.WriteString(fmt.Sprintf("   📱 `%s`\n", user.Phone))
-		result.WriteString(fmt.Sprintf("   🆔 Telegram ID: `%s`\n", telegramIDStr))
-		result.WriteString(fmt.Sprintf("   🏷️ Telegram Tag: `%s`\n", telegramTagStr))
+		result.WriteString(fmt.Sprintf("   📱 %s\n", user.Phone))
+		result.WriteString(fmt.Sprintf("   🆔 Telegram ID: %s\n", telegramIDStr))
+		result.WriteString(fmt.Sprintf("   🏷️ Telegram Tag: %s\n", telegramTagStr))
 		result.WriteString(fmt.Sprintf("   📅 Создан: %s\n", user.CreatedAt.Format("02.01.2006 15:04")))
-		result.WriteString(fmt.Sprintf("   🆔 UUID: `%s`\n", user.UUID.String()))
+		result.WriteString(fmt.Sprintf("   🆔 UUID: %s\n", user.UUID.String()))
 		result.WriteString("\n")
 	}
 
@@ -239,14 +248,26 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 			ordersCount = -1
 		}
 
+		activeOrdersCount, err := ab.database.GetActiveOrdersCount()
+		if err != nil {
+			log.Printf("Ошибка получения количества активных заказов: %v", err)
+			activeOrdersCount = -1
+		}
+
+		archivedOrdersCount := 0
+		if ordersCount >= 0 && activeOrdersCount >= 0 {
+			archivedOrdersCount = ordersCount - activeOrdersCount
+		}
+
 		customersCount, err := ab.database.GetCustomersCount()
 		if err != nil {
 			log.Printf("Ошибка получения количества клиентов: %v", err)
 			customersCount = -1
 		}
 
-		if ordersCount >= 0 && customersCount >= 0 {
-			response = fmt.Sprintf("✅ Система работает нормально.\n📊 Статистика:\n📋 Заказов: %d\n👥 Клиентов: %d", ordersCount, customersCount)
+		if ordersCount >= 0 && customersCount >= 0 && activeOrdersCount >= 0 {
+			response = fmt.Sprintf("✅ Система работает нормально.\n📊 Статистика:\n📋 Всего заказов: %d\n🟢 Активных: %d\n🔴 Архивных: %d\n👥 Клиентов: %d",
+				ordersCount, activeOrdersCount, archivedOrdersCount, customersCount)
 		} else {
 			response = "⚠️ Система работает, но есть проблемы с базой данных"
 		}
@@ -256,6 +277,26 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		if err != nil {
 			log.Printf("Ошибка получения заказов: %v", err)
 			response = "❌ Ошибка получения заказов из базы данных"
+		} else {
+			response = ab.formatOrders(orders)
+		}
+		keyboard = ordersMenuKeyboard()
+	case "/active_orders", "🟢 Активные заказы":
+		// Получаем только активные заказы
+		orders, err := ab.orderService.GetActiveOrders()
+		if err != nil {
+			log.Printf("Ошибка получения активных заказов: %v", err)
+			response = "❌ Ошибка получения активных заказов из базы данных"
+		} else {
+			response = ab.formatOrders(orders)
+		}
+		keyboard = ordersMenuKeyboard()
+	case "/archived_orders", "🔴 Архивные заказы":
+		// Получаем только архивные заказы
+		orders, err := ab.orderService.GetOrdersByStatus("archived")
+		if err != nil {
+			log.Printf("Ошибка получения архивных заказов: %v", err)
+			response = "❌ Ошибка получения архивных заказов из базы данных"
 		} else {
 			response = ab.formatOrders(orders)
 		}
@@ -303,7 +344,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 				if err != nil {
 					response = fmt.Sprintf("❌ Ошибка создания пользователя: %v", err)
 				} else {
-					response = fmt.Sprintf("✅ Пользователь успешно создан!\n\n👤 Имя: %s\n📱 Телефон: `%s`\n🆔 Telegram ID: `%s`\n🏷️ Telegram Tag: `%s`\n🆔 UUID: `%s`",
+					response = fmt.Sprintf("✅ Пользователь успешно создан!\n\n👤 Имя: %s\n📱 Телефон: %s\n🆔 Telegram ID: %s\n🏷️ Telegram Tag: %s\n🆔 UUID: %s",
 						createdUser.Name,
 						createdUser.Phone,
 						formatTelegramID(createdUser.TelegramID),
@@ -312,12 +353,40 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 				}
 			}
 		} else {
-			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag"
+			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+		}
+
+		// Проверяем команды изменения статуса заказов
+		if strings.HasPrefix(text, "ARCHIVE_ORDER ") {
+			orderUUID := strings.TrimSpace(strings.TrimPrefix(text, "ARCHIVE_ORDER "))
+			if orderUUID == "" {
+				response = "❌ Укажите UUID заказа для архивирования\n\nПример: ARCHIVE_ORDER 12345678-1234-1234-1234-123456789abc"
+			} else {
+				err := ab.orderService.UpdateOrderStatus(orderUUID, "archived")
+				if err != nil {
+					response = fmt.Sprintf("❌ Ошибка архивирования заказа: %v", err)
+				} else {
+					response = fmt.Sprintf("✅ Заказ %s успешно архивирован!", orderUUID[:8])
+				}
+			}
+		} else if strings.HasPrefix(text, "ACTIVATE_ORDER ") {
+			orderUUID := strings.TrimSpace(strings.TrimPrefix(text, "ACTIVATE_ORDER "))
+			if orderUUID == "" {
+				response = "❌ Укажите UUID заказа для активации\n\nПример: ACTIVATE_ORDER 12345678-1234-1234-1234-123456789abc"
+			} else {
+				err := ab.orderService.UpdateOrderStatus(orderUUID, "active")
+				if err != nil {
+					response = fmt.Sprintf("❌ Ошибка активации заказа: %v", err)
+				} else {
+					response = fmt.Sprintf("✅ Заказ %s успешно активирован!", orderUUID[:8])
+				}
+			}
 		}
 	}
 
 	msg := tgbotapi.NewMessage(chatID, response)
-	msg.ParseMode = "Markdown"
+	// Отключаем Markdown разметку для предотвращения ошибок
+	msg.ParseMode = ""
 	if keyboard.Keyboard != nil {
 		msg.ReplyMarkup = keyboard
 	}

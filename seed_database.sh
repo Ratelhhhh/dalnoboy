@@ -51,7 +51,7 @@ INSERT INTO customers (name, phone, telegram_id, telegram_tag) VALUES
 echo -e "${YELLOW}Добавляю тестовые заказы...${NC}"
 
 execute_sql "
-INSERT INTO orders (customer_uuid, title, description, weight_kg, length_cm, width_cm, height_cm, from_location, to_location, tags, price, available_from) 
+INSERT INTO orders (customer_uuid, title, description, weight_kg, length_cm, width_cm, height_cm, from_location, to_location, tags, price, available_from, status) 
 SELECT 
     c.uuid,
     'Доставка документов',
@@ -64,7 +64,8 @@ SELECT
     'Москва, ул. Арбат, д. 15',
     ARRAY['документы', 'срочно', 'офис'],
     500,
-    CURRENT_DATE
+    CURRENT_DATE,
+    'active'
 FROM customers c WHERE c.name = 'Иванов Иван Иванович'
 UNION ALL
 SELECT 
@@ -79,7 +80,8 @@ SELECT
     'Москва, ул. Пушкина, д. 25',
     ARRAY['мебель', 'квартира', 'переезд'],
     3000,
-    CURRENT_DATE + INTERVAL '1 day'
+    CURRENT_DATE + INTERVAL '1 day',
+    'active'
 FROM customers c WHERE c.name = 'Петров Петр Петрович'
 UNION ALL
 SELECT 
@@ -94,7 +96,8 @@ SELECT
     'Москва, ул. Гагарина, д. 5',
     ARRAY['продукты', 'магазин', 'домой'],
     800,
-    CURRENT_DATE
+    CURRENT_DATE,
+    'active'
 FROM customers c WHERE c.name = 'Сидорова Анна Владимировна'
 UNION ALL
 SELECT 
@@ -109,7 +112,8 @@ SELECT
     'Москва, ул. Солнечная, д. 12',
     ARRAY['техника', 'холодильник', 'стиральная машина'],
     4500,
-    CURRENT_DATE + INTERVAL '2 days'
+    CURRENT_DATE + INTERVAL '2 days',
+    'active'
 FROM customers c WHERE c.name = 'Козлов Дмитрий Сергеевич'
 UNION ALL
 SELECT 
@@ -124,7 +128,8 @@ SELECT
     'Москва, ул. Романтичная, д. 8',
     ARRAY['цветы', 'подарок', 'день рождения'],
     1200,
-    CURRENT_DATE
+    CURRENT_DATE,
+    'active'
 FROM customers c WHERE c.name = 'Морозова Елена Александровна'
 UNION ALL
 SELECT 
@@ -139,7 +144,8 @@ SELECT
     'Москва, ул. Строителей, д. 30',
     ARRAY['стройматериалы', 'цемент', 'песок'],
     8000,
-    CURRENT_DATE + INTERVAL '3 days'
+    CURRENT_DATE + INTERVAL '3 days',
+    'active'
 FROM customers c WHERE c.name = 'Волков Андрей Николаевич'
 UNION ALL
 SELECT 
@@ -154,7 +160,8 @@ SELECT
     'Москва, ул. Модная, д. 18',
     ARRAY['одежда', 'интернет-магазин', 'доставка'],
     600,
-    CURRENT_DATE
+    CURRENT_DATE,
+    'active'
 FROM customers c WHERE c.name = 'Соколова Мария Игоревна'
 UNION ALL
 SELECT 
@@ -169,7 +176,8 @@ SELECT
     'Москва, ул. Физкультурная, д. 22',
     ARRAY['спорт', 'тренажеры', 'спортзал'],
     6000,
-    CURRENT_DATE + INTERVAL '1 day'
+    CURRENT_DATE + INTERVAL '1 day',
+    'active'
 FROM customers c WHERE c.name = 'Лебедев Сергей Викторович'
 UNION ALL
 SELECT 
@@ -184,7 +192,8 @@ SELECT
     'Москва, ул. Книжная, д. 33',
     ARRAY['книги', 'библиотека', 'образование'],
     1500,
-    CURRENT_DATE
+    CURRENT_DATE,
+    'active'
 FROM customers c WHERE c.name = 'Новикова Ольга Дмитриевна'
 UNION ALL
 SELECT 
@@ -199,7 +208,8 @@ SELECT
     'Москва, ул. Школьная, д. 44',
     ARRAY['музыка', 'пианино', 'школа'],
     7500,
-    CURRENT_DATE + INTERVAL '4 days'
+    CURRENT_DATE + INTERVAL '4 days',
+    'active'
 FROM customers c WHERE c.name = 'Медведев Александр Павлович';
 "
 
