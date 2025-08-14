@@ -99,6 +99,22 @@ func (os *OrderService) GetOrdersByStatus(status string) ([]domain.Order, error)
 	return os.database.GetOrdersByStatus(status)
 }
 
+// GetOrdersByWeightRange возвращает заказы в указанном диапазоне веса
+func (os *OrderService) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]domain.Order, error) {
+	// Валидация параметров
+	if minWeight != nil && *minWeight < 0 {
+		return nil, fmt.Errorf("минимальный вес не может быть отрицательным")
+	}
+	if maxWeight != nil && *maxWeight < 0 {
+		return nil, fmt.Errorf("максимальный вес не может быть отрицательным")
+	}
+	if minWeight != nil && maxWeight != nil && *minWeight > *maxWeight {
+		return nil, fmt.Errorf("минимальный вес не может быть больше максимального")
+	}
+
+	return os.database.GetOrdersByWeightRange(minWeight, maxWeight)
+}
+
 // UpdateOrderStatus обновляет статус заказа
 func (os *OrderService) UpdateOrderStatus(orderUUID string, status string) error {
 	return os.database.UpdateOrderStatus(orderUUID, status)

@@ -1,12 +1,14 @@
 package app
 
 import (
+	"dalnoboy/internal/domain"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -50,7 +52,46 @@ func (a *App) getOrdersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	orders, err := a.OrderService.GetAllOrders()
+	// Получаем query параметры для фильтрации по весу
+	queryParams := r.URL.Query()
+	minWeightStr := queryParams.Get("min_weight")
+	maxWeightStr := queryParams.Get("max_weight")
+
+	var minWeight, maxWeight *float64
+	var err error
+
+	// Парсим минимальный вес
+	if minWeightStr != "" {
+		var weight float64
+		weight, err = strconv.ParseFloat(minWeightStr, 64)
+		if err != nil {
+			http.Error(w, "Некорректный параметр min_weight", http.StatusBadRequest)
+			return
+		}
+		minWeight = &weight
+	}
+
+	// Парсим максимальный вес
+	if maxWeightStr != "" {
+		var weight float64
+		weight, err = strconv.ParseFloat(maxWeightStr, 64)
+		if err != nil {
+			http.Error(w, "Некорректный параметр max_weight", http.StatusBadRequest)
+			return
+		}
+		maxWeight = &weight
+	}
+
+	var orders []domain.Order
+
+	// Если указаны параметры веса, используем фильтрацию
+	if minWeight != nil || maxWeight != nil {
+		orders, err = a.OrderService.GetOrdersByWeightRange(minWeight, maxWeight)
+	} else {
+		// Иначе получаем все заказы
+		orders, err = a.OrderService.GetAllOrders()
+	}
+
 	if err != nil {
 		log.Printf("Ошибка получения заказов: %v", err)
 		http.Error(w, "Внутренняя ошибка сервера", http.StatusInternalServerError)

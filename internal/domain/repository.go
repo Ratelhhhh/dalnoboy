@@ -6,6 +6,7 @@ type OrderRepository interface {
 	GetAllOrders() ([]Order, error)
 	GetActiveOrders() ([]Order, error)
 	GetOrdersByStatus(status string) ([]Order, error)
+	GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]Order, error)
 	GetOrdersCount() (int, error)
 	GetActiveOrdersCount() (int, error)
 	UpdateOrderStatus(orderUUID string, status string) error

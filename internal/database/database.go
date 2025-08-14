@@ -316,6 +316,99 @@ func (d *Database) UpdateOrderStatus(orderUUID string, status string) error {
 	return nil
 }
 
+// GetOrdersByWeightRange возвращает заказы в указанном диапазоне веса
+func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]domain.Order, error) {
+	var query string
+	var args []interface{}
+
+	// Базовый запрос
+	baseQuery := `
+		SELECT 
+			o.uuid,
+			o.customer_uuid,
+			o.title,
+			o.description,
+			o.weight_kg,
+			o.length_cm,
+			o.width_cm,
+			o.height_cm,
+			o.from_location,
+			o.to_location,
+			o.tags,
+			o.price,
+			o.available_from,
+			o.status,
+			o.created_at,
+			c.name as customer_name,
+			c.phone as customer_phone
+		FROM orders o
+		JOIN customers c ON o.customer_uuid = c.uuid
+	`
+
+	// Формируем WHERE условие в зависимости от переданных параметров
+	if minWeight != nil && maxWeight != nil {
+		// Оба параметра указаны
+		query = baseQuery + " WHERE o.weight_kg >= $1 AND o.weight_kg <= $2 ORDER BY o.created_at DESC"
+		args = []interface{}{*minWeight, *maxWeight}
+	} else if minWeight != nil {
+		// Только минимальный вес
+		query = baseQuery + " WHERE o.weight_kg >= $1 ORDER BY o.created_at DESC"
+		args = []interface{}{*minWeight}
+	} else if maxWeight != nil {
+		// Только максимальный вес
+		query = baseQuery + " WHERE o.weight_kg <= $1 ORDER BY o.created_at DESC"
+		args = []interface{}{*maxWeight}
+	} else {
+		// Ни один параметр не указан - возвращаем все заказы
+		query = baseQuery + " ORDER BY o.created_at DESC"
+		args = []interface{}{}
+	}
+
+	rows, err := d.DB.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса: %v", err)
+	}
+	defer rows.Close()
+
+	var orders []domain.Order
+	for rows.Next() {
+		var order domain.Order
+		var tags pq.StringArray
+
+		err := rows.Scan(
+			&order.UUID,
+			&order.CustomerUUID,
+			&order.Title,
+			&order.Description,
+			&order.WeightKg,
+			&order.LengthCm,
+			&order.WidthCm,
+			&order.HeightCm,
+			&order.FromLocation,
+			&order.ToLocation,
+			&tags,
+			&order.Price,
+			&order.AvailableFrom,
+			&order.Status,
+			&order.CreatedAt,
+			&order.CustomerName,
+			&order.CustomerPhone,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
+		}
+
+		order.Tags = []string(tags)
+		orders = append(orders, order)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %v", err)
+	}
+
+	return orders, nil
+}
+
 // CreateUser создает нового пользователя в базе данных
 func (d *Database) CreateUser(user *domain.User) error {
 	query := `

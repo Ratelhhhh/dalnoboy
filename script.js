@@ -1,4 +1,4 @@
-
+console.log('=== SCRIPT.JS ЗАГРУЖЕН ===');
 
 // DOM элементы
 const loadingEl = document.getElementById('loading');
@@ -61,7 +61,7 @@ function createOrderHTML(order) {
     return `
         <div class="order-card">
             <div class="order-header">
-                <div class="order-id">#${order.id || 'N/A'}</div>
+                <div class="order-id">#${order.uuid || order.id || 'N/A'}</div>
                 <div class="order-title">${order.title || 'Без названия'}</div>
             </div>
             <div class="order-details">
@@ -69,30 +69,30 @@ function createOrderHTML(order) {
                     <strong>Описание:</strong> ${order.description || 'Не указано'}
                 </div>
                 <div class="order-detail">
-                    <strong>Клиент:</strong> ${order.customer || 'Не указано'} (${order.phone || 'нет телефона'})
+                    <strong>Клиент:</strong> ${order.customer_name || order.customer || 'Не указано'} (${order.customer_phone || order.phone || 'нет телефона'})
                 </div>
                 <div class="order-detail">
-                    <strong>Маршрут:</strong> ${order.from || 'Не указано'} → ${order.to || 'Не указано'}
+                    <strong>Маршрут:</strong> ${order.from_location || order.from || 'Не указано'} → ${order.to_location || order.to || 'Не указано'}
                 </div>
                 <div class="order-detail">
                     <strong>Вес:</strong> ${order.weight ? order.weight + ' кг' : 'Не указан'}
                 </div>
                 <div class="order-detail">
-                    <strong>Размеры:</strong> ${order.dimensions || 'Не указаны'}
+                    <strong>Размеры:</strong> ${order.length_cm && order.width_cm && order.height_cm ? 
+                        `${order.length_cm}×${order.width_cm}×${order.width_cm} см` : 
+                        (order.dimensions || 'Не указаны')}
                 </div>
                 <div class="order-detail">
                     <strong>Цена:</strong> ${order.price ? order.price + ' ₽' : 'Не указана'}
                 </div>
                 <div class="order-detail">
-                    <strong>Дата:</strong> ${order.date || 'Не указана'}
+                    <strong>Дата:</strong> ${order.created_at ? new Date(order.created_at).toLocaleDateString('ru-RU') : (order.date || 'Не указана')}
                 </div>
             </div>
-            ${order.tags && order.tags !== 'Нет тегов' ? `<div class="order-tags"><span class="tag">${order.tags}</span></div>` : ''}
+            ${order.tags && order.tags.length > 0 ? `<div class="order-tags">${order.tags.map(tag => `<span class="tag">${tag}</span>`).join('')}</div>` : ''}
         </div>
     `;
 }
-
-
 
 // Показать загрузку
 function showLoading() {
