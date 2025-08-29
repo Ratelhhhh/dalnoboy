@@ -1,5 +1,10 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+CREATE TABLE cities (
+  uuid           UUID      PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name           TEXT      NOT NULL UNIQUE
+);
+
 CREATE TABLE customers (
   uuid           UUID      PRIMARY KEY DEFAULT uuid_generate_v4(),
   name           TEXT      NOT NULL,    -- ФИО или название
@@ -7,6 +12,16 @@ CREATE TABLE customers (
   telegram_id    BIGINT,                 -- числовой ID в Telegram
   telegram_tag   TEXT,                   -- @username
   created_at     TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE drivers (
+  uuid                    UUID      PRIMARY KEY DEFAULT uuid_generate_v4(),
+  name                    TEXT      NOT NULL,
+  telegram_id             BIGINT   NOT NULL UNIQUE,
+  telegram_tag            TEXT,                   -- @username
+  notification_enabled    BOOLEAN  NOT NULL DEFAULT true,
+  city_uuid               UUID      NOT NULL REFERENCES cities(uuid) ON DELETE RESTRICT,
+  created_at              TIMESTAMP NOT NULL DEFAULT now()
 );
 
 CREATE TABLE orders (
@@ -30,4 +45,6 @@ CREATE TABLE orders (
 CREATE INDEX idx_orders_tags   ON orders USING GIN(tags);
 CREATE INDEX idx_orders_price  ON orders(price);
 CREATE INDEX idx_orders_weight ON orders(weight_kg);
-CREATE INDEX idx_orders_status ON orders(status); 
+CREATE INDEX idx_orders_status ON orders(status);
+CREATE INDEX idx_drivers_city  ON drivers(city_uuid);
+CREATE INDEX idx_drivers_notification ON drivers(notification_enabled) WHERE notification_enabled = true; 
