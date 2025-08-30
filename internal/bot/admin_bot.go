@@ -25,9 +25,12 @@ type AdminBot struct {
 
 // NewAdminBot создает новый экземпляр админского бота
 func NewAdminBot(config *internal.Config, db *database.Database) (*AdminBot, error) {
+	log.Printf("Инициализация админского бота с токеном: %s...", config.Bot.AdminToken[:10]+"...")
+
 	bot, err := tgbotapi.NewBotAPI(config.Bot.AdminToken)
 	if err != nil {
-		return nil, err
+		log.Printf("Ошибка создания бота: %v", err)
+		return nil, fmt.Errorf("ошибка создания админского бота: %v", err)
 	}
 
 	log.Printf("Админский бот %s запущен", bot.Self.UserName)
