@@ -71,7 +71,7 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 
 	for i, order := range orders {
 		// Форматируем дату
-		dateStr := "Не указана"
+		dateStr := ""
 		if order.AvailableFrom != nil {
 			dateStr = order.AvailableFrom.Format("02.01.2006")
 		}
@@ -113,12 +113,22 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 			result.WriteString(fmt.Sprintf("   📄 %s\n", order.Description))
 		}
 		result.WriteString(fmt.Sprintf("   👤 %s (%s)\n", order.CustomerName, order.CustomerPhone))
+
+		// Добавляем информацию о Telegram заказчика
+		if order.CustomerTelegramID != nil {
+			result.WriteString(fmt.Sprintf("   🆔 Telegram ID: %d\n", *order.CustomerTelegramID))
+		}
+		if order.CustomerTelegramTag != nil && *order.CustomerTelegramTag != "" {
+			result.WriteString(fmt.Sprintf("   🏷️ Telegram: %s\n", *order.CustomerTelegramTag))
+		}
 		result.WriteString(fmt.Sprintf("   📍 %s → %s\n", fromLoc, toLoc))
 		result.WriteString(fmt.Sprintf("   ⚖️ %.1f кг\n", order.WeightKg))
 		result.WriteString(fmt.Sprintf("   📏 %s\n", dimensions))
 		result.WriteString(fmt.Sprintf("   🏷️ %s\n", tagsStr))
 		result.WriteString(fmt.Sprintf("   💰 %.0f ₽\n", order.Price))
-		result.WriteString(fmt.Sprintf("   📅 %s\n", dateStr))
+		if dateStr != "" {
+			result.WriteString(fmt.Sprintf("   📅 %s\n", dateStr))
+		}
 		result.WriteString(fmt.Sprintf("   🆔 ID: %s\n", order.UUID))
 		result.WriteString("\n")
 	}
@@ -355,7 +365,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		response = "Добро пожаловать в админскую панель! Выберите действие."
 		keyboard = adminMainMenuKeyboard()
 	case "/help", "❓ Помощь":
-		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/users - Посмотреть пользователей\n/filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда\nКуда\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/users - Посмотреть пользователей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда\nКуда\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
 	case "/status":
 		// Получаем статистику из базы данных
 		ordersCount, err := ab.database.GetOrdersCount()
@@ -463,24 +473,29 @@ ADD_ORDER
 			response = ab.formatUsers(users)
 		}
 		keyboard = usersMenuKeyboard()
-	case "/filter", "⚙️ Фильтр":
-		response = "Вы в меню фильтров. Выберите, что настроить:"
-		keyboard = filterMenuKeyboard()
-	case "📍 Маршрут":
-		response = "Введите маршрут в сообщении, например: Москва → Санкт-Петербург"
-		keyboard = filterMenuKeyboard()
-	case "💰 Цена":
-		response = "Укажите диапазон цены, например: 10000-20000"
-		keyboard = filterMenuKeyboard()
-	case "📅 Дата":
-		response = "Укажите дату или диапазон, например: Сегодня или 2025-08-10 — 2025-08-15"
-		keyboard = filterMenuKeyboard()
-	case "📦 Тип груза":
-		response = "Укажите тип груза, например: Рефрижератор, Негабарит, Опасный"
-		keyboard = filterMenuKeyboard()
-	case "♻️ Сбросить":
-		response = "Фильтры сброшены"
-		keyboard = filterMenuKeyboard()
+
+	// Закомментировано - убираем функционал фильтров
+	/*
+		case "/filter", "⚙️ Фильтр":
+			response = "Вы в меню фильтров. Выберите, что настроить:"
+			keyboard = filterMenuKeyboard()
+		case "📍 Маршрут":
+			response = "Введите маршрут в сообщении, например: Москва → Санкт-Петербург"
+			keyboard = filterMenuKeyboard()
+		case "💰 Цена":
+			response = "Укажите диапазон цены, например: 10000-20000"
+			keyboard = filterMenuKeyboard()
+		case "📅 Дата":
+			response = "Укажите дату или диапазон, например: Сегодня или 2025-08-10 — 2025-08-15"
+			keyboard = filterMenuKeyboard()
+		case "📦 Тип груза":
+			response = "Укажите тип груза, например: Рефрижератор, Негабарит, Опасный"
+			keyboard = filterMenuKeyboard()
+		case "♻️ Сбросить":
+			response = "Фильтры сброшены"
+			keyboard = filterMenuKeyboard()
+	*/
+
 	case "⬅️ Назад":
 		response = "Главное меню"
 		keyboard = adminMainMenuKeyboard()

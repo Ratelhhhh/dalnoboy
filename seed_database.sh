@@ -9,7 +9,7 @@ if ! pg_isready -h localhost -p 5432 > /dev/null 2>&1; then
 fi
 
 # Подключаемся к базе данных и выполняем вставку данных
-psql -h localhost -U postgres -d dalnoboy << EOF
+PGPASSWORD=dalnoboy_password psql -h localhost -U dalnoboy -d dalnoboy << EOF
 
 -- Вставляем города
 INSERT INTO cities (name) VALUES 

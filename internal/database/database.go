@@ -96,7 +96,9 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 			o.status,
 			o.created_at,
 			c.name as customer_name,
-			c.phone as customer_phone
+			c.phone as customer_phone,
+			c.telegram_id as customer_telegram_id,
+			c.telegram_tag as customer_telegram_tag
 		FROM orders o
 		JOIN customers c ON o.customer_uuid = c.uuid
 		ORDER BY o.created_at DESC
@@ -131,6 +133,8 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 			&order.CreatedAt,
 			&order.CustomerName,
 			&order.CustomerPhone,
+			&order.CustomerTelegramID,
+			&order.CustomerTelegramTag,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
@@ -167,7 +171,9 @@ func (d *Database) GetActiveOrders() ([]domain.Order, error) {
 			o.status,
 			o.created_at,
 			c.name as customer_name,
-			c.phone as customer_phone
+			c.phone as customer_phone,
+			c.telegram_id as customer_telegram_id,
+			c.telegram_tag as customer_telegram_tag
 		FROM orders o
 		JOIN customers c ON o.customer_uuid = c.uuid
 		WHERE o.status = 'active'
@@ -203,6 +209,8 @@ func (d *Database) GetActiveOrders() ([]domain.Order, error) {
 			&order.CreatedAt,
 			&order.CustomerName,
 			&order.CustomerPhone,
+			&order.CustomerTelegramID,
+			&order.CustomerTelegramTag,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
@@ -239,7 +247,9 @@ func (d *Database) GetOrdersByStatus(status string) ([]domain.Order, error) {
 			o.status,
 			o.created_at,
 			c.name as customer_name,
-			c.phone as customer_phone
+			c.phone as customer_phone,
+			c.telegram_id as customer_telegram_id,
+			c.telegram_tag as customer_telegram_tag
 		FROM orders o
 		JOIN customers c ON o.customer_uuid = c.uuid
 		WHERE o.status = $1
@@ -275,6 +285,8 @@ func (d *Database) GetOrdersByStatus(status string) ([]domain.Order, error) {
 			&order.CreatedAt,
 			&order.CustomerName,
 			&order.CustomerPhone,
+			&order.CustomerTelegramID,
+			&order.CustomerTelegramTag,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
@@ -340,7 +352,9 @@ func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]doma
 			o.status,
 			o.created_at,
 			c.name as customer_name,
-			c.phone as customer_phone
+			c.phone as customer_phone,
+			c.telegram_id as customer_telegram_id,
+			c.telegram_tag as customer_telegram_tag
 		FROM orders o
 		JOIN customers c ON o.customer_uuid = c.uuid
 	`
@@ -393,6 +407,8 @@ func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]doma
 			&order.CreatedAt,
 			&order.CustomerName,
 			&order.CustomerPhone,
+			&order.CustomerTelegramID,
+			&order.CustomerTelegramTag,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)

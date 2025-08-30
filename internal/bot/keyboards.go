@@ -16,12 +16,16 @@ func adminMainMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	}
 }
 
-// driverMainMenuKeyboard возвращает главное меню водительского бота только с кнопкой "Заказы"
+// driverMainMenuKeyboard возвращает главное меню водительского бота с кнопками заказов и уведомлений
 func driverMainMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	return tgbotapi.ReplyKeyboardMarkup{
 		Keyboard: [][]tgbotapi.KeyboardButton{
 			{
 				{Text: "📋 Заказы"},
+			},
+			{
+				{Text: "🔔 Включить уведомления"},
+				{Text: "🔕 Выключить уведомления"},
 			},
 		},
 		ResizeKeyboard:  true,
@@ -40,8 +44,12 @@ func ordersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 				{Text: "🟢 Активные заказы"},
 				{Text: "🔴 Архивные заказы"},
 			},
+			// Закомментировано - убираем фильтры
+			// {
+			// 	{Text: "⚙️ Фильтр"},
+			// 	{Text: "⬅️ Назад"},
+			// },
 			{
-				{Text: "⚙️ Фильтр"},
 				{Text: "⬅️ Назад"},
 			},
 		},
@@ -54,8 +62,12 @@ func ordersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 func driverOrdersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	return tgbotapi.ReplyKeyboardMarkup{
 		Keyboard: [][]tgbotapi.KeyboardButton{
+			// Закомментировано - убираем фильтры
+			// {
+			// 	{Text: "⚙️ Фильтр"},
+			// 	{Text: "⬅️ Назад"},
+			// },
 			{
-				{Text: "⚙️ Фильтр"},
 				{Text: "⬅️ Назад"},
 			},
 		},
@@ -65,6 +77,8 @@ func driverOrdersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 }
 
 // filterMenuKeyboard возвращает меню настройки фильтров
+// Закомментировано - убираем функционал фильтров
+/*
 func filterMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	return tgbotapi.ReplyKeyboardMarkup{
 		Keyboard: [][]tgbotapi.KeyboardButton{
@@ -85,6 +99,7 @@ func filterMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 		OneTimeKeyboard: false,
 	}
 }
+*/
 
 // usersMenuKeyboard возвращает меню для раздела пользователей
 func usersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
