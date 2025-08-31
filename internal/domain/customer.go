@@ -6,8 +6,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// User представляет доменную модель пользователя
-type User struct {
+// Customer представляет доменную модель заказчика
+type Customer struct {
 	UUID        uuid.UUID `json:"uuid"`
 	Name        string    `json:"name"`
 	Phone       string    `json:"phone"`

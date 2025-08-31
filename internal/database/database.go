@@ -18,10 +18,10 @@ type Database struct {
 	DB *sql.DB
 }
 
-// Ensure Database implements OrderRepository, CustomerRepository and UserRepository
+// Ensure Database implements OrderRepository, CustomerRepository and DriverRepository
 var _ domain.OrderRepository = (*Database)(nil)
 var _ domain.CustomerRepository = (*Database)(nil)
-var _ domain.UserRepository = (*Database)(nil)
+var _ domain.DriverRepository = (*Database)(nil)
 
 // New создает новое подключение к базе данных
 func New(config *internal.Config) (*Database, error) {
@@ -63,14 +63,14 @@ func (d *Database) GetOrdersCount() (int, error) {
 	return count, nil
 }
 
-// GetCustomersCount возвращает количество клиентов в базе данных
+// GetCustomersCount возвращает количество заказчиков в базе данных
 func (d *Database) GetCustomersCount() (int, error) {
 	var count int
 	query := "SELECT COUNT(*) FROM customers"
 
 	err := d.DB.QueryRow(query).Scan(&count)
 	if err != nil {
-		return 0, fmt.Errorf("ошибка получения количества клиентов: %v", err)
+		return 0, fmt.Errorf("ошибка получения количества заказчиков: %v", err)
 	}
 
 	return count, nil
@@ -505,93 +505,93 @@ func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]doma
 	return orders, nil
 }
 
-// CreateUser создает нового пользователя в базе данных
-func (d *Database) CreateUser(user *domain.User) error {
+// CreateCustomer создает нового заказчика в базе данных
+func (d *Database) CreateCustomer(customer *domain.Customer) error {
 	query := `
 		INSERT INTO customers (uuid, name, phone, telegram_id, telegram_tag, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`
 
-	_, err := d.DB.Exec(query, user.UUID.String(), user.Name, user.Phone, user.TelegramID, user.TelegramTag, user.CreatedAt)
+	_, err := d.DB.Exec(query, customer.UUID.String(), customer.Name, customer.Phone, customer.TelegramID, customer.TelegramTag, customer.CreatedAt)
 	if err != nil {
-		return fmt.Errorf("ошибка создания пользователя: %v", err)
+		return fmt.Errorf("ошибка создания заказчика: %v", err)
 	}
 
 	return nil
 }
 
-// GetUserByPhone возвращает пользователя по номеру телефона
-func (d *Database) GetUserByPhone(phone string) (*domain.User, error) {
+// GetCustomerByPhone возвращает заказчика по номеру телефона
+func (d *Database) GetCustomerByPhone(phone string) (*domain.Customer, error) {
 	query := `
 		SELECT uuid, name, phone, telegram_id, telegram_tag, created_at
 		FROM customers
 		WHERE phone = $1
 	`
 
-	var user domain.User
+	var customer domain.Customer
 	var uuidStr string
 	err := d.DB.QueryRow(query, phone).Scan(
 		&uuidStr,
-		&user.Name,
-		&user.Phone,
-		&user.TelegramID,
-		&user.TelegramTag,
-		&user.CreatedAt,
+		&customer.Name,
+		&customer.Phone,
+		&customer.TelegramID,
+		&customer.TelegramTag,
+		&customer.CreatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil // Пользователь не найден
+			return nil, nil // Заказчик не найден
 		}
-		return nil, fmt.Errorf("ошибка получения пользователя по телефону: %v", err)
+		return nil, fmt.Errorf("ошибка получения заказчика по телефону: %v", err)
 	}
 
 	// Парсим UUID из строки
-	userUUID, err := uuid.Parse(uuidStr)
+	customerUUID, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка парсинга UUID: %v", err)
 	}
-	user.UUID = userUUID
+	customer.UUID = customerUUID
 
-	return &user, nil
+	return &customer, nil
 }
 
-// GetUserByTelegramID возвращает пользователя по Telegram ID
-func (d *Database) GetUserByTelegramID(telegramID int64) (*domain.User, error) {
+// GetCustomerByTelegramID возвращает заказчика по Telegram ID
+func (d *Database) GetCustomerByTelegramID(telegramID int64) (*domain.Customer, error) {
 	query := `
 		SELECT uuid, name, phone, telegram_id, telegram_tag, created_at
 		FROM customers
 		WHERE telegram_id = $1
 	`
 
-	var user domain.User
+	var customer domain.Customer
 	var uuidStr string
 	err := d.DB.QueryRow(query, telegramID).Scan(
 		&uuidStr,
-		&user.Name,
-		&user.Phone,
-		&user.TelegramID,
-		&user.TelegramTag,
-		&user.CreatedAt,
+		&customer.Name,
+		&customer.Phone,
+		&customer.TelegramID,
+		&customer.TelegramTag,
+		&customer.CreatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, nil // Пользователь не найден
+			return nil, nil // Заказчик не найден
 		}
-		return nil, fmt.Errorf("ошибка получения пользователя по Telegram ID: %v", err)
+		return nil, fmt.Errorf("ошибка получения заказчика по Telegram ID: %v", err)
 	}
 
 	// Парсим UUID из строки
-	userUUID, err := uuid.Parse(uuidStr)
+	customerUUID, err := uuid.Parse(uuidStr)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка парсинга UUID: %v", err)
 	}
-	user.UUID = userUUID
+	customer.UUID = customerUUID
 
-	return &user, nil
+	return &customer, nil
 }
 
-// GetAllUsers возвращает всех пользователей
-func (d *Database) GetAllUsers() ([]domain.User, error) {
+// GetAllCustomers возвращает всех заказчиков
+func (d *Database) GetAllCustomers() ([]domain.Customer, error) {
 	query := `
 		SELECT uuid, name, phone, telegram_id, telegram_tag, created_at
 		FROM customers
@@ -604,50 +604,37 @@ func (d *Database) GetAllUsers() ([]domain.User, error) {
 	}
 	defer rows.Close()
 
-	var users []domain.User
+	var customers []domain.Customer
 	for rows.Next() {
-		var user domain.User
+		var customer domain.Customer
 		var uuidStr string
 		err := rows.Scan(
 			&uuidStr,
-			&user.Name,
-			&user.Phone,
-			&user.TelegramID,
-			&user.TelegramTag,
-			&user.CreatedAt,
+			&customer.Name,
+			&customer.Phone,
+			&customer.TelegramID,
+			&customer.TelegramTag,
+			&customer.CreatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
 		}
 
 		// Парсим UUID из строки
-		userUUID, err := uuid.Parse(uuidStr)
+		customerUUID, err := uuid.Parse(uuidStr)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка парсинга UUID: %v", err)
 		}
-		user.UUID = userUUID
+		customer.UUID = customerUUID
 
-		users = append(users, user)
+		customers = append(customers, customer)
 	}
 
 	if err = rows.Err(); err != nil {
 		return nil, fmt.Errorf("ошибка при итерации по строкам: %v", err)
 	}
 
-	return users, nil
-}
-
-// GetUsersCount возвращает количество пользователей в базе данных
-func (d *Database) GetUsersCount() (int, error) {
-	var count int
-	query := "SELECT COUNT(*) FROM customers"
-
-	err := d.DB.QueryRow(query).Scan(&count)
-	if err != nil {
-		return 0, fmt.Errorf("ошибка получения количества пользователей: %v", err)
-	}
-
-	return count, nil
+	return customers, nil
 }
 
 // CreateOrder создает новый заказ в базе данных
@@ -684,4 +671,82 @@ func (d *Database) CreateOrder(order *domain.Order) error {
 	}
 
 	return nil
+}
+
+// GetDriversCount возвращает количество водителей в базе данных
+func (d *Database) GetDriversCount() (int, error) {
+	var count int
+	query := "SELECT COUNT(*) FROM drivers"
+
+	err := d.DB.QueryRow(query).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("ошибка получения количества водителей: %v", err)
+	}
+
+	return count, nil
+}
+
+// GetAllDrivers возвращает всех водителей с информацией о городах
+func (d *Database) GetAllDrivers() ([]domain.Driver, error) {
+	query := `
+		SELECT 
+			d.uuid,
+			d.name,
+			d.telegram_id,
+			d.telegram_tag,
+			d.notification_enabled,
+			d.city_uuid,
+			d.created_at,
+			c.name as city_name
+		FROM drivers d
+		LEFT JOIN cities c ON d.city_uuid = c.uuid
+		ORDER BY d.created_at DESC
+	`
+
+	rows, err := d.DB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка выполнения запроса: %v", err)
+	}
+	defer rows.Close()
+
+	var drivers []domain.Driver
+	for rows.Next() {
+		var driver domain.Driver
+		var uuidStr string
+		var cityUUIDStr string
+		err := rows.Scan(
+			&uuidStr,
+			&driver.Name,
+			&driver.TelegramID,
+			&driver.TelegramTag,
+			&driver.NotificationEnabled,
+			&cityUUIDStr,
+			&driver.CreatedAt,
+			&driver.CityName,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
+		}
+
+		// Парсим UUID из строки
+		driverUUID, err := uuid.Parse(uuidStr)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка парсинга UUID водителя: %v", err)
+		}
+		driver.UUID = driverUUID
+
+		cityUUID, err := uuid.Parse(cityUUIDStr)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка парсинга UUID города: %v", err)
+		}
+		driver.CityUUID = cityUUID
+
+		drivers = append(drivers, driver)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("ошибка при итерации по строкам: %v", err)
+	}
+
+	return drivers, nil
 }

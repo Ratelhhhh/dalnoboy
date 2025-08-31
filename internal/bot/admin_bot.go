@@ -17,10 +17,11 @@ import (
 
 // AdminBot представляет админского бота
 type AdminBot struct {
-	bot          *tgbotapi.BotAPI
-	database     *database.Database
-	orderService *service.OrderService
-	userService  *service.UserService
+	bot             *tgbotapi.BotAPI
+	database        *database.Database
+	orderService    *service.OrderService
+	customerService *service.CustomerService
+	driverService   *service.DriverService
 }
 
 // NewAdminBot создает новый экземпляр админского бота
@@ -36,10 +37,11 @@ func NewAdminBot(config *internal.Config, db *database.Database) (*AdminBot, err
 	log.Printf("Админский бот %s запущен", bot.Self.UserName)
 
 	return &AdminBot{
-		bot:          bot,
-		database:     db,
-		orderService: service.NewOrderService(db),
-		userService:  service.NewUserService(db),
+		bot:             bot,
+		database:        db,
+		orderService:    service.NewOrderService(db),
+		customerService: service.NewCustomerService(db),
+		driverService:   service.NewDriverService(db),
 	}, nil
 }
 
@@ -159,43 +161,84 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 	return result.String()
 }
 
-// formatUsers форматирует пользователей для отображения
-func (ab *AdminBot) formatUsers(users []domain.User) string {
-	if len(users) == 0 {
-		return "👥 Пользователей пока нет"
+// formatCustomers форматирует заказчиков для отображения
+func (ab *AdminBot) formatCustomers(customers []domain.Customer) string {
+	if len(customers) == 0 {
+		return "👥 Заказчиков пока нет"
 	}
 
 	var result strings.Builder
-	result.WriteString(fmt.Sprintf("👥 Список пользователей (%d):\n\n", len(users)))
+	result.WriteString(fmt.Sprintf("👥 Список заказчиков (%d):\n\n", len(customers)))
 
-	for i, user := range users {
+	for i, customer := range customers {
 		// Форматируем Telegram ID
 		telegramIDStr := "-"
-		if user.TelegramID != nil {
-			telegramIDStr = fmt.Sprintf("%d", *user.TelegramID)
+		if customer.TelegramID != nil {
+			telegramIDStr = fmt.Sprintf("%d", *customer.TelegramID)
 		}
 
 		// Форматируем Telegram Tag
 		telegramTagStr := "-"
-		if user.TelegramTag != nil {
-			telegramTagStr = *user.TelegramTag
+		if customer.TelegramTag != nil {
+			telegramTagStr = *customer.TelegramTag
 		}
 
-		result.WriteString(fmt.Sprintf("%d. 👤 %s\n", i+1, user.Name))
-		result.WriteString(fmt.Sprintf("   📱 %s\n", user.Phone))
+		result.WriteString(fmt.Sprintf("%d. 👤 %s\n", i+1, customer.Name))
+		result.WriteString(fmt.Sprintf("   📱 %s\n", customer.Phone))
 		result.WriteString(fmt.Sprintf("   🆔 Telegram ID: %s\n", telegramIDStr))
 		result.WriteString(fmt.Sprintf("   🏷️ Telegram Tag: %s\n", telegramTagStr))
-		result.WriteString(fmt.Sprintf("   📅 Создан: %s\n", user.CreatedAt.Format("02.01.2006 15:04")))
-		result.WriteString(fmt.Sprintf("   🆔 UUID: %s\n", user.UUID.String()))
+		result.WriteString(fmt.Sprintf("   📅 Создан: %s\n", customer.CreatedAt.Format("02.01.2006 15:04")))
+		result.WriteString(fmt.Sprintf("   🆔 UUID: %s\n", customer.UUID.String()))
 		result.WriteString("\n")
 	}
 
 	return result.String()
 }
 
-// parseUserMessage парсит сообщение с данными пользователя
+// formatDrivers форматирует водителей для отображения
+func (ab *AdminBot) formatDrivers(drivers []domain.Driver) string {
+	if len(drivers) == 0 {
+		return "🚚 Водителей пока нет"
+	}
+
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("🚚 Список водителей (%d):\n\n", len(drivers)))
+
+	for i, driver := range drivers {
+		// Форматируем Telegram Tag
+		telegramTagStr := "-"
+		if driver.TelegramTag != nil {
+			telegramTagStr = *driver.TelegramTag
+		}
+
+		// Форматируем название города
+		cityNameStr := "Не указан"
+		if driver.CityName != nil {
+			cityNameStr = *driver.CityName
+		}
+
+		// Форматируем статус уведомлений
+		notificationStatus := "🔔 Включены"
+		if !driver.NotificationEnabled {
+			notificationStatus = "🔕 Выключены"
+		}
+
+		result.WriteString(fmt.Sprintf("%d. 🚚 %s\n", i+1, driver.Name))
+		result.WriteString(fmt.Sprintf("   📱 Telegram ID: %d\n", driver.TelegramID))
+		result.WriteString(fmt.Sprintf("   🏷️ Telegram Tag: %s\n", telegramTagStr))
+		result.WriteString(fmt.Sprintf("   🏙️ Город: %s\n", cityNameStr))
+		result.WriteString(fmt.Sprintf("   %s\n", notificationStatus))
+		result.WriteString(fmt.Sprintf("   📅 Зарегистрирован: %s\n", driver.CreatedAt.Format("02.01.2006 15:04")))
+		result.WriteString(fmt.Sprintf("   🆔 UUID: %s\n", driver.UUID))
+		result.WriteString("\n")
+	}
+
+	return result.String()
+}
+
+// parseCustomerMessage парсит сообщение с данными заказчика
 // Формат: ADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag
-func (ab *AdminBot) parseUserMessage(text string) (*domain.User, error) {
+func (ab *AdminBot) parseCustomerMessage(text string) (*domain.Customer, error) {
 	lines := strings.Split(strings.TrimSpace(text), "\n")
 	if len(lines) < 3 {
 		return nil, fmt.Errorf("недостаточно данных. Нужно минимум: имя, телефон")
@@ -231,14 +274,14 @@ func (ab *AdminBot) parseUserMessage(text string) (*domain.User, error) {
 		}
 	}
 
-	user := &domain.User{
+	customer := &domain.Customer{
 		Name:        name,
 		Phone:       phone,
 		TelegramID:  telegramID,
 		TelegramTag: telegramTag,
 	}
 
-	return user, nil
+	return customer, nil
 }
 
 // parseOrderMessage парсит сообщение с данными заказа
@@ -392,7 +435,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		response = "Добро пожаловать в админскую панель! Выберите действие."
 		keyboard = adminMainMenuKeyboard()
 	case "/help", "❓ Помощь":
-		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/users - Посмотреть пользователей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/👥 Заказчики - Посмотреть заказчиков\n/🚚 Водители - Посмотреть водителей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
 	case "/status":
 		// Получаем статистику из базы данных
 		ordersCount, err := ab.database.GetOrdersCount()
@@ -418,9 +461,15 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 			customersCount = -1
 		}
 
-		if ordersCount >= 0 && customersCount >= 0 && activeOrdersCount >= 0 {
-			response = fmt.Sprintf("✅ Система работает нормально.\n📊 Статистика:\n📋 Всего заказов: %d\n🟢 Активных: %d\n🔴 Архивных: %d\n👥 Клиентов: %d",
-				ordersCount, activeOrdersCount, archivedOrdersCount, customersCount)
+		driversCount, err := ab.database.GetDriversCount()
+		if err != nil {
+			log.Printf("Ошибка получения количества водителей: %v", err)
+			driversCount = -1
+		}
+
+		if ordersCount >= 0 && customersCount >= 0 && activeOrdersCount >= 0 && driversCount >= 0 {
+			response = fmt.Sprintf("✅ Система работает нормально.\n📊 Статистика:\n📋 Всего заказов: %d\n🟢 Активных: %d\n🔴 Архивных: %d\n👥 Заказчиков: %d\n🚚 Водителей: %d",
+				ordersCount, activeOrdersCount, archivedOrdersCount, customersCount, driversCount)
 		} else {
 			response = "⚠️ Система работает, но есть проблемы с базой данных"
 		}
@@ -490,16 +539,26 @@ ADD_ORDER
 			response = ab.formatOrders(orders)
 		}
 		keyboard = ordersMenuKeyboard()
-	case "/users", "👥 Пользователи":
-		// Получаем пользователей через сервис
-		users, err := ab.userService.GetAllUsers()
+	case "/users", "👥 Заказчики":
+		// Получаем заказчиков через сервис
+		customers, err := ab.customerService.GetAllCustomers()
 		if err != nil {
-			log.Printf("Ошибка получения пользователей: %v", err)
-			response = "❌ Ошибка получения пользователей из базы данных"
+			log.Printf("Ошибка получения заказчиков: %v", err)
+			response = "❌ Ошибка получения заказчиков из базы данных"
 		} else {
-			response = ab.formatUsers(users)
+			response = ab.formatCustomers(customers)
 		}
 		keyboard = usersMenuKeyboard()
+	case "/drivers", "🚚 Водители":
+		// Получаем водителей через сервис
+		drivers, err := ab.driverService.GetAllDrivers()
+		if err != nil {
+			log.Printf("Ошибка получения водителей: %v", err)
+			response = "❌ Ошибка получения водителей из базы данных"
+		} else {
+			response = ab.formatDrivers(drivers)
+		}
+		keyboard = driversMenuKeyboard()
 
 	// Закомментировано - убираем функционал фильтров
 	/*
@@ -527,23 +586,23 @@ ADD_ORDER
 		response = "Главное меню"
 		keyboard = adminMainMenuKeyboard()
 	default:
-		// Проверяем, не является ли сообщение данными для добавления пользователя
+		// Проверяем, не является ли сообщение данными для добавления заказчика
 		if strings.HasPrefix(text, "ADD_USER") {
-			user, err := ab.parseUserMessage(text)
+			customer, err := ab.parseCustomerMessage(text)
 			if err != nil {
-				response = fmt.Sprintf("❌ Ошибка парсинга данных пользователя: %v\n\nПример правильного формата:\nADD_USER\nИван Иванов\n+79001234567\n123456789\n@ivan_username", err)
+				response = fmt.Sprintf("❌ Ошибка парсинга данных заказчика: %v\n\nПример правильного формата:\nADD_USER\nИван Иванов\n+79001234567\n123456789\n@ivan_username", err)
 			} else {
-				// Создаем пользователя через сервис
-				createdUser, err := ab.userService.CreateUser(user.Name, user.Phone, user.TelegramID, user.TelegramTag)
+				// Создаем заказчика через сервис
+				createdCustomer, err := ab.customerService.CreateCustomer(customer.Name, customer.Phone, customer.TelegramID, customer.TelegramTag)
 				if err != nil {
-					response = fmt.Sprintf("❌ Ошибка создания пользователя: %v", err)
+					response = fmt.Sprintf("❌ Ошибка создания заказчика: %v", err)
 				} else {
-					response = fmt.Sprintf("✅ Пользователь успешно создан!\n\n👤 Имя: %s\n📱 Телефон: %s\n🆔 Telegram ID: %s\n🏷️ Telegram Tag: %s\n🆔 UUID: %s",
-						createdUser.Name,
-						createdUser.Phone,
-						formatTelegramID(createdUser.TelegramID),
-						formatTelegramTag(createdUser.TelegramTag),
-						createdUser.UUID)
+					response = fmt.Sprintf("✅ Заказчик успешно создан!\n\n👤 Имя: %s\n📱 Телефон: %s\n🆔 Telegram ID: %s\n🏷️ Telegram Tag: %s\n🆔 UUID: %s",
+						createdCustomer.Name,
+						createdCustomer.Phone,
+						formatTelegramID(createdCustomer.TelegramID),
+						formatTelegramTag(createdCustomer.TelegramTag),
+						createdCustomer.UUID)
 				}
 			}
 		} else if strings.HasPrefix(text, "ADD_ORDER") {
@@ -583,7 +642,7 @@ ADD_ORDER
 			// Сбрасываем состояние создания заказа
 			keyboard = ordersMenuKeyboard()
 		} else {
-			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления заказчика используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
 		}
 
 		// Проверяем команды изменения статуса заказов

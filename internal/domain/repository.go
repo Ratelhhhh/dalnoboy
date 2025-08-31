@@ -12,16 +12,17 @@ type OrderRepository interface {
 	UpdateOrderStatus(orderUUID string, status string) error
 }
 
-// CustomerRepository определяет интерфейс для работы с клиентами
+// CustomerRepository определяет интерфейс для работы с заказчиками
 type CustomerRepository interface {
+	CreateCustomer(customer *Customer) error
+	GetCustomerByPhone(phone string) (*Customer, error)
+	GetCustomerByTelegramID(telegramID int64) (*Customer, error)
+	GetAllCustomers() ([]Customer, error)
 	GetCustomersCount() (int, error)
 }
 
-// UserRepository определяет интерфейс для работы с пользователями
-type UserRepository interface {
-	CreateUser(user *User) error
-	GetUserByPhone(phone string) (*User, error)
-	GetUserByTelegramID(telegramID int64) (*User, error)
-	GetAllUsers() ([]User, error)
-	GetUsersCount() (int, error)
+// DriverRepository определяет интерфейс для работы с водителями
+type DriverRepository interface {
+	GetDriversCount() (int, error)
+	GetAllDrivers() ([]Driver, error)
 }

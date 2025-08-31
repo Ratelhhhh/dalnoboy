@@ -2,13 +2,16 @@ package bot
 
 import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-// adminMainMenuKeyboard возвращает главное меню админского бота с кнопками "Заказы" и "Пользователи"
+// adminMainMenuKeyboard возвращает главное меню админского бота с кнопками "Заказы", "Заказчики" и "Водители"
 func adminMainMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	return tgbotapi.ReplyKeyboardMarkup{
 		Keyboard: [][]tgbotapi.KeyboardButton{
 			{
 				{Text: "📋 Заказы"},
-				{Text: "👥 Пользователи"},
+				{Text: "👥 Заказчики"},
+			},
+			{
+				{Text: "🚚 Водители"},
 			},
 		},
 		ResizeKeyboard:  true,
@@ -103,6 +106,19 @@ func filterMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 
 // usersMenuKeyboard возвращает меню для раздела пользователей
 func usersMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
+	return tgbotapi.ReplyKeyboardMarkup{
+		Keyboard: [][]tgbotapi.KeyboardButton{
+			{
+				{Text: "⬅️ Назад"},
+			},
+		},
+		ResizeKeyboard:  true,
+		OneTimeKeyboard: false,
+	}
+}
+
+// driversMenuKeyboard возвращает меню для раздела водителей
+func driversMenuKeyboard() tgbotapi.ReplyKeyboardMarkup {
 	return tgbotapi.ReplyKeyboardMarkup{
 		Keyboard: [][]tgbotapi.KeyboardButton{
 			{
