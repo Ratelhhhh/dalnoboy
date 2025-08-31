@@ -19,8 +19,12 @@ type Order struct {
 	LengthCm            *float64   `json:"length_cm"`
 	WidthCm             *float64   `json:"width_cm"`
 	HeightCm            *float64   `json:"height_cm"`
-	FromLocation        *string    `json:"from_location"`
-	ToLocation          *string    `json:"to_location"`
+	FromCityUUID        *string    `json:"from_city_uuid"`
+	FromAddress         *string    `json:"from_address"`
+	FromCityName        *string    `json:"from_city_name"`
+	ToCityUUID          *string    `json:"to_city_uuid"`
+	ToAddress           *string    `json:"to_address"`
+	ToCityName          *string    `json:"to_city_name"`
 	Tags                []string   `json:"tags"`
 	Price               float64    `json:"price"`
 	AvailableFrom       *time.Time `json:"available_from"`

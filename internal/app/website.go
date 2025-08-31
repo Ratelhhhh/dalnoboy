@@ -113,14 +113,36 @@ func (a *App) getOrdersHandler(w http.ResponseWriter, r *http.Request) {
 			dimensions = fmt.Sprintf("%.0f×%.0f×%.0f см", *order.LengthCm, *order.WidthCm, *order.HeightCm)
 		}
 
-		// Форматируем локации
+		// Форматируем локации для межгородских перевозок
 		fromLoc := "Не указано"
 		toLoc := "Не указано"
-		if order.FromLocation != nil {
-			fromLoc = *order.FromLocation
-		}
-		if order.ToLocation != nil {
-			toLoc = *order.ToLocation
+
+		if order.FromCityName != nil && order.ToCityName != nil {
+			// Основной маршрут между городами
+			fromLoc = fmt.Sprintf("%s → %s", *order.FromCityName, *order.ToCityName)
+
+			// Адреса в одной строке
+			if order.FromAddress != nil && order.ToAddress != nil {
+				toLoc = fmt.Sprintf("%s: %s | %s: %s",
+					*order.FromCityName, *order.FromAddress,
+					*order.ToCityName, *order.ToAddress)
+			} else if order.FromAddress != nil {
+				toLoc = fmt.Sprintf("%s: %s", *order.FromCityName, *order.FromAddress)
+			} else if order.ToAddress != nil {
+				toLoc = fmt.Sprintf("%s: %s", *order.ToCityName, *order.ToAddress)
+			} else {
+				toLoc = "Адреса не указаны"
+			}
+		} else if order.FromCityName != nil {
+			fromLoc = *order.FromCityName
+			if order.FromAddress != nil {
+				toLoc = fmt.Sprintf("Адрес: %s", *order.FromAddress)
+			}
+		} else if order.ToCityName != nil {
+			toLoc = *order.ToCityName
+			if order.ToAddress != nil {
+				fromLoc = fmt.Sprintf("Адрес: %s", *order.ToAddress)
+			}
 		}
 
 		// Форматируем теги

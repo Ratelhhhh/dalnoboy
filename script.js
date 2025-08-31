@@ -72,7 +72,14 @@ function createOrderHTML(order) {
                     <strong>Клиент:</strong> ${order.customer_name || order.customer || 'Не указано'} (${order.customer_phone || order.phone || 'нет телефона'})
                 </div>
                 <div class="order-detail">
-                    <strong>Маршрут:</strong> ${order.from_location || order.from || 'Не указано'} → ${order.to_location || order.to || 'Не указано'}
+                    <strong>Маршрут:</strong> ${order.from_city_name && order.to_city_name ? 
+                        `${order.from_city_name} → ${order.to_city_name}` : 
+                        (order.from || 'Не указано')}
+                </div>
+                <div class="order-detail">
+                    <strong>Адреса:</strong> ${order.from_city_name && order.to_city_name && order.from_address && order.to_address ? 
+                        `${order.from_city_name}: ${order.from_address} | ${order.to_city_name}: ${order.to_address}` : 
+                        (order.from_address && order.to_address ? `${order.from_address} → ${order.to_address}` : 'Не указаны')}
                 </div>
                 <div class="order-detail">
                     <strong>Вес:</strong> ${order.weight ? order.weight + ' кг' : 'Не указан'}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"dalnoboy/internal"
 	"dalnoboy/internal/database"
@@ -63,26 +64,36 @@ func (db *DriverBot) formatOrders(orders []domain.Order) string {
 	result.WriteString(fmt.Sprintf("📋 Список доступных заказов (%d):\n\n", len(orders)))
 
 	for i, order := range orders {
-		// Форматируем дату
-		dateStr := ""
-		if order.AvailableFrom != nil {
-			dateStr = order.AvailableFrom.Format("02.01.2006")
-		}
-
-		// Форматируем размеры
-		dimensions := "Не указаны"
-		if order.LengthCm != nil && order.WidthCm != nil && order.HeightCm != nil {
-			dimensions = fmt.Sprintf("%.0f×%.0f×%.0f см", *order.LengthCm, *order.WidthCm, *order.HeightCm)
-		}
-
-		// Форматируем локации
+		// Форматируем локации для межгородских перевозок
 		fromLoc := "Не указано"
 		toLoc := "Не указано"
-		if order.FromLocation != nil {
-			fromLoc = *order.FromLocation
-		}
-		if order.ToLocation != nil {
-			toLoc = *order.ToLocation
+
+		if order.FromCityName != nil && order.ToCityName != nil {
+			// Основной маршрут между городами
+			fromLoc = fmt.Sprintf("%s → %s", *order.FromCityName, *order.ToCityName)
+
+			// Адреса в одной строке
+			if order.FromAddress != nil && order.ToAddress != nil {
+				toLoc = fmt.Sprintf("🏠 %s: %s | %s: %s",
+					*order.FromCityName, *order.FromAddress,
+					*order.ToCityName, *order.ToAddress)
+			} else if order.FromAddress != nil {
+				toLoc = fmt.Sprintf("🏠 %s: %s", *order.FromCityName, *order.FromAddress)
+			} else if order.ToAddress != nil {
+				toLoc = fmt.Sprintf("🏠 %s: %s", *order.ToCityName, *order.ToAddress)
+			} else {
+				toLoc = "🏠 Адреса не указаны"
+			}
+		} else if order.FromCityName != nil {
+			fromLoc = *order.FromCityName
+			if order.FromAddress != nil {
+				toLoc = fmt.Sprintf("🏠 Адрес: %s", *order.FromAddress)
+			}
+		} else if order.ToCityName != nil {
+			toLoc = *order.ToCityName
+			if order.ToAddress != nil {
+				fromLoc = fmt.Sprintf("🏠 Адрес: %s", *order.ToAddress)
+			}
 		}
 
 		// Форматируем теги
@@ -96,32 +107,79 @@ func (db *DriverBot) formatOrders(orders []domain.Order) string {
 		if order.Description != "" {
 			result.WriteString(fmt.Sprintf("   📄 %s\n", order.Description))
 		}
-		result.WriteString(fmt.Sprintf("   📍 %s → %s\n", fromLoc, toLoc))
-		result.WriteString(fmt.Sprintf("   ⚖️ %.1f кг\n", order.WeightKg))
-		result.WriteString(fmt.Sprintf("   📏 %s\n", dimensions))
-		result.WriteString(fmt.Sprintf("   🏷️ %s\n", tagsStr))
-		result.WriteString(fmt.Sprintf("   💰 %.0f ₽\n", order.Price))
-		if dateStr != "" {
-			result.WriteString(fmt.Sprintf("   📅 %s\n", dateStr))
-		}
+		result.WriteString(fmt.Sprintf("   %s\n", fromLoc))
+		result.WriteString(fmt.Sprintf("   %s\n", toLoc))
+		result.WriteString(fmt.Sprintf("   ⚖️ %.1f кг | 💰 %.0f ₽\n", order.WeightKg, order.Price))
+		result.WriteString(fmt.Sprintf("   👤 %s | 📱 %s\n", order.CustomerName, order.CustomerPhone))
 
-		// Добавляем информацию о заказчике
-		if order.CustomerName != "" {
-			result.WriteString(fmt.Sprintf("   👤 %s\n", order.CustomerName))
-		}
-		if order.CustomerPhone != "" {
-			result.WriteString(fmt.Sprintf("   📱 %s\n", order.CustomerPhone))
-		}
-
-		// Добавляем информацию о Telegram заказчика (только username)
-		if order.CustomerTelegramTag != nil && *order.CustomerTelegramTag != "" {
-			result.WriteString(fmt.Sprintf("   🏷️ Telegram: %s\n", *order.CustomerTelegramTag))
+		// Добавляем теги только если они есть
+		if len(order.Tags) > 0 {
+			result.WriteString(fmt.Sprintf("   🏷️ %s\n", tagsStr))
 		}
 
 		result.WriteString("\n")
 	}
-
 	return result.String()
+}
+
+// splitMessage разбивает длинное сообщение на части для Telegram
+func (db *DriverBot) splitMessage(text string, maxLength int) []string {
+	if len(text) <= maxLength {
+		return []string{text}
+	}
+
+	var parts []string
+	var currentPart strings.Builder
+	lines := strings.Split(text, "\n")
+
+	for _, line := range lines {
+		// Если добавление текущей строки превысит лимит
+		if currentPart.Len()+len(line)+1 > maxLength {
+			// Сохраняем текущую часть
+			if currentPart.Len() > 0 {
+				parts = append(parts, strings.TrimSpace(currentPart.String()))
+				currentPart.Reset()
+			}
+
+			// Если одна строка слишком длинная, разбиваем её
+			if len(line) > maxLength {
+				// Разбиваем длинную строку по словам
+				words := strings.Fields(line)
+				var tempLine strings.Builder
+
+				for _, word := range words {
+					if tempLine.Len()+len(word)+1 > maxLength {
+						if tempLine.Len() > 0 {
+							parts = append(parts, strings.TrimSpace(tempLine.String()))
+							tempLine.Reset()
+						}
+					}
+					if tempLine.Len() > 0 {
+						tempLine.WriteString(" ")
+					}
+					tempLine.WriteString(word)
+				}
+
+				if tempLine.Len() > 0 {
+					currentPart.WriteString(tempLine.String())
+					currentPart.WriteString("\n")
+				}
+			} else {
+				currentPart.WriteString(line)
+				currentPart.WriteString("\n")
+			}
+		} else {
+			currentPart.WriteString(line)
+			currentPart.WriteString("\n")
+		}
+	}
+
+	// Добавляем последнюю часть
+	if currentPart.Len() > 0 {
+		parts = append(parts, strings.TrimSpace(currentPart.String()))
+	}
+
+	return parts
 }
 
 // handleMessage обрабатывает входящие сообщения
@@ -189,8 +247,30 @@ func (db *DriverBot) handleMessage(message *tgbotapi.Message) {
 		msg.ReplyMarkup = keyboard
 	}
 
-	// Отключаем Markdown разметку для предотвращения ошибок
-	msg.ParseMode = ""
+	// Разбиваем длинные сообщения на части
+	parts := db.splitMessage(response, 4000) // Telegram лимит 4096, берем с запасом
 
-	db.bot.Send(msg)
+	for i, part := range parts {
+		// Для первой части используем клавиатуру, для остальных - нет
+		if i == 0 {
+			msg := tgbotapi.NewMessage(chatID, part)
+			if keyboard.Keyboard != nil {
+				msg.ReplyMarkup = keyboard
+			}
+			if _, err := db.bot.Send(msg); err != nil {
+				log.Printf("Ошибка отправки части сообщения %d: %v", i+1, err)
+			}
+		} else {
+			// Для дополнительных частей без клавиатуры
+			msg := tgbotapi.NewMessage(chatID, part)
+			if _, err := db.bot.Send(msg); err != nil {
+				log.Printf("Ошибка отправки части сообщения %d: %v", i+1, err)
+			}
+		}
+
+		// Небольшая задержка между сообщениями
+		if i < len(parts)-1 {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 }

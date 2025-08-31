@@ -82,14 +82,36 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 			dimensions = fmt.Sprintf("%.0f×%.0f×%.0f см", *order.LengthCm, *order.WidthCm, *order.HeightCm)
 		}
 
-		// Форматируем локации
+		// Форматируем локации для межгородских перевозок
 		fromLoc := "Не указано"
 		toLoc := "Не указано"
-		if order.FromLocation != nil {
-			fromLoc = *order.FromLocation
-		}
-		if order.ToLocation != nil {
-			toLoc = *order.ToLocation
+
+		if order.FromCityName != nil && order.ToCityName != nil {
+			// Основной маршрут между городами
+			fromLoc = fmt.Sprintf("%s → %s", *order.FromCityName, *order.ToCityName)
+
+			// Адреса в одной строке
+			if order.FromAddress != nil && order.ToAddress != nil {
+				toLoc = fmt.Sprintf("🏠 %s: %s | %s: %s",
+					*order.FromCityName, *order.FromAddress,
+					*order.ToCityName, *order.ToAddress)
+			} else if order.FromAddress != nil {
+				toLoc = fmt.Sprintf("🏠 %s: %s", *order.FromCityName, *order.FromAddress)
+			} else if order.ToAddress != nil {
+				toLoc = fmt.Sprintf("🏠 %s: %s", *order.ToCityName, *order.ToAddress)
+			} else {
+				toLoc = "🏠 Адреса не указаны"
+			}
+		} else if order.FromCityName != nil {
+			fromLoc = *order.FromCityName
+			if order.FromAddress != nil {
+				toLoc = fmt.Sprintf("🏠 Адрес: %s", *order.FromAddress)
+			}
+		} else if order.ToCityName != nil {
+			toLoc = *order.ToCityName
+			if order.ToAddress != nil {
+				fromLoc = fmt.Sprintf("🏠 Адрес: %s", *order.ToAddress)
+			}
 		}
 
 		// Форматируем теги
@@ -121,7 +143,8 @@ func (ab *AdminBot) formatOrders(orders []domain.Order) string {
 		if order.CustomerTelegramTag != nil && *order.CustomerTelegramTag != "" {
 			result.WriteString(fmt.Sprintf("   🏷️ Telegram: %s\n", *order.CustomerTelegramTag))
 		}
-		result.WriteString(fmt.Sprintf("   📍 %s → %s\n", fromLoc, toLoc))
+		result.WriteString(fmt.Sprintf("   %s\n", fromLoc))
+		result.WriteString(fmt.Sprintf("   %s\n", toLoc))
 		result.WriteString(fmt.Sprintf("   ⚖️ %.1f кг\n", order.WeightKg))
 		result.WriteString(fmt.Sprintf("   📏 %s\n", dimensions))
 		result.WriteString(fmt.Sprintf("   🏷️ %s\n", tagsStr))
@@ -219,11 +242,11 @@ func (ab *AdminBot) parseUserMessage(text string) (*domain.User, error) {
 }
 
 // parseOrderMessage парсит сообщение с данными заказа
-// Формат: ADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда\nКуда\nТеги\nЦена\nДата\nUUID клиента
+// Формат: ADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента
 func (ab *AdminBot) parseOrderMessage(text string) (*domain.Order, error) {
 	lines := strings.Split(strings.TrimSpace(text), "\n")
-	if len(lines) < 13 {
-		return nil, fmt.Errorf("недостаточно данных. Нужно 13 строк: ADD_ORDER + 12 полей")
+	if len(lines) < 15 {
+		return nil, fmt.Errorf("недостаточно данных. Нужно 15 строк: ADD_ORDER + 14 полей")
 	}
 
 	// Проверяем ключ
@@ -250,29 +273,31 @@ func (ab *AdminBot) parseOrderMessage(text string) (*domain.Order, error) {
 	heightCm := parseOptionalFloat(lines[6])
 
 	// Парсим локации (опционально)
-	fromLocation := parseOptionalString(lines[7])
-	toLocation := parseOptionalString(lines[8])
+	fromCityUUID := parseOptionalString(lines[7])
+	fromAddress := parseOptionalString(lines[8])
+	toCityUUID := parseOptionalString(lines[9])
+	toAddress := parseOptionalString(lines[10])
 
 	// Парсим теги
 	var tags []string
-	if lines[9] != "-" && strings.TrimSpace(lines[9]) != "" {
-		tags = strings.Split(strings.TrimSpace(lines[9]), ",")
+	if lines[11] != "-" && strings.TrimSpace(lines[11]) != "" {
+		tags = strings.Split(strings.TrimSpace(lines[11]), ",")
 		for i, tag := range tags {
 			tags[i] = strings.TrimSpace(tag)
 		}
 	}
 
 	// Парсим цену
-	price, err := parseFloat(lines[10])
+	price, err := parseFloat(lines[12])
 	if err != nil {
 		return nil, fmt.Errorf("ошибка парсинга цены: %v", err)
 	}
 
 	// Парсим дату (опционально)
-	availableFrom := parseOptionalDate(lines[11])
+	availableFrom := parseOptionalDate(lines[13])
 
 	// Парсим UUID клиента
-	customerUUID := strings.TrimSpace(lines[12])
+	customerUUID := strings.TrimSpace(lines[14])
 	if customerUUID == "" {
 		return nil, fmt.Errorf("UUID клиента не может быть пустым")
 	}
@@ -284,8 +309,10 @@ func (ab *AdminBot) parseOrderMessage(text string) (*domain.Order, error) {
 		LengthCm:      lengthCm,
 		WidthCm:       widthCm,
 		HeightCm:      heightCm,
-		FromLocation:  fromLocation,
-		ToLocation:    toLocation,
+		FromCityUUID:  fromCityUUID,
+		FromAddress:   fromAddress,
+		ToCityUUID:    toCityUUID,
+		ToAddress:     toAddress,
 		Tags:          tags,
 		Price:         price,
 		AvailableFrom: availableFrom,
@@ -365,7 +392,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		response = "Добро пожаловать в админскую панель! Выберите действие."
 		keyboard = adminMainMenuKeyboard()
 	case "/help", "❓ Помощь":
-		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/users - Посмотреть пользователей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда\nКуда\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/users - Посмотреть пользователей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
 	case "/status":
 		// Получаем статистику из базы данных
 		ordersCount, err := ab.database.GetOrdersCount()
@@ -534,8 +561,10 @@ ADD_ORDER
 					order.LengthCm,
 					order.WidthCm,
 					order.HeightCm,
-					order.FromLocation,
-					order.ToLocation,
+					order.FromCityUUID,
+					order.FromAddress,
+					order.ToCityUUID,
+					order.ToAddress,
 					order.Tags,
 					order.Price,
 					order.AvailableFrom,
@@ -554,7 +583,7 @@ ADD_ORDER
 			// Сбрасываем состояние создания заказа
 			keyboard = ordersMenuKeyboard()
 		} else {
-			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда\nКуда\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
 		}
 
 		// Проверяем команды изменения статуса заказов
@@ -585,14 +614,78 @@ ADD_ORDER
 		}
 	}
 
-	msg := tgbotapi.NewMessage(chatID, response)
-	// Отключаем Markdown разметку для предотвращения ошибок
-	msg.ParseMode = ""
-	if keyboard.Keyboard != nil {
-		msg.ReplyMarkup = keyboard
+	// splitMessage разбивает длинное сообщение на части для Telegram
+	responseParts := ab.splitMessage(response, 4096) // Telegram API max message length
+	for _, part := range responseParts {
+		msg := tgbotapi.NewMessage(chatID, part)
+		// Отключаем Markdown разметку для предотвращения ошибок
+		msg.ParseMode = ""
+		if keyboard.Keyboard != nil {
+			msg.ReplyMarkup = keyboard
+		}
+		_, err := ab.bot.Send(msg)
+		if err != nil {
+			log.Printf("Ошибка отправки сообщения: %v", err)
+		}
 	}
-	_, err := ab.bot.Send(msg)
-	if err != nil {
-		log.Printf("Ошибка отправки сообщения: %v", err)
+}
+
+// splitMessage разбивает длинное сообщение на части для Telegram
+func (ab *AdminBot) splitMessage(text string, maxLength int) []string {
+	if len(text) <= maxLength {
+		return []string{text}
 	}
+
+	var parts []string
+	var currentPart strings.Builder
+	lines := strings.Split(text, "\n")
+
+	for _, line := range lines {
+		// Если добавление текущей строки превысит лимит
+		if currentPart.Len()+len(line)+1 > maxLength {
+			// Сохраняем текущую часть
+			if currentPart.Len() > 0 {
+				parts = append(parts, strings.TrimSpace(currentPart.String()))
+				currentPart.Reset()
+			}
+
+			// Если одна строка слишком длинная, разбиваем её
+			if len(line) > maxLength {
+				// Разбиваем длинную строку по словам
+				words := strings.Fields(line)
+				var tempLine strings.Builder
+
+				for _, word := range words {
+					if tempLine.Len()+len(word)+1 > maxLength {
+						if tempLine.Len() > 0 {
+							parts = append(parts, strings.TrimSpace(tempLine.String()))
+							tempLine.Reset()
+						}
+					}
+					if tempLine.Len() > 0 {
+						tempLine.WriteString(" ")
+					}
+					tempLine.WriteString(word)
+				}
+
+				if tempLine.Len() > 0 {
+					currentPart.WriteString(tempLine.String())
+					currentPart.WriteString("\n")
+				}
+			} else {
+				currentPart.WriteString(line)
+				currentPart.WriteString("\n")
+			}
+		} else {
+			currentPart.WriteString(line)
+			currentPart.WriteString("\n")
+		}
+	}
+
+	// Добавляем последнюю часть
+	if currentPart.Len() > 0 {
+		parts = append(parts, strings.TrimSpace(currentPart.String()))
+	}
+
+	return parts
 }

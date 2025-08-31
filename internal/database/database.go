@@ -88,8 +88,10 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 			o.length_cm,
 			o.width_cm,
 			o.height_cm,
-			o.from_location,
-			o.to_location,
+			o.from_city_uuid,
+			o.from_address,
+			o.to_city_uuid,
+			o.to_address,
 			o.tags,
 			o.price,
 			o.available_from,
@@ -98,9 +100,13 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 			c.name as customer_name,
 			c.phone as customer_phone,
 			c.telegram_id as customer_telegram_id,
-			c.telegram_tag as customer_telegram_tag
+			c.telegram_tag as customer_telegram_tag,
+			COALESCE(fc.name, '') as from_city_name,
+			COALESCE(tc.name, '') as to_city_name
 		FROM orders o
 		JOIN customers c ON o.customer_uuid = c.uuid
+		LEFT JOIN cities fc ON o.from_city_uuid = fc.uuid
+		LEFT JOIN cities tc ON o.to_city_uuid = tc.uuid
 		ORDER BY o.created_at DESC
 	`
 
@@ -114,6 +120,7 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 	for rows.Next() {
 		var order domain.Order
 		var tags pq.StringArray
+		var fromCityName, toCityName string
 
 		err := rows.Scan(
 			&order.UUID,
@@ -124,8 +131,10 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 			&order.LengthCm,
 			&order.WidthCm,
 			&order.HeightCm,
-			&order.FromLocation,
-			&order.ToLocation,
+			&order.FromCityUUID,
+			&order.FromAddress,
+			&order.ToCityUUID,
+			&order.ToAddress,
 			&tags,
 			&order.Price,
 			&order.AvailableFrom,
@@ -135,12 +144,23 @@ func (d *Database) GetAllOrders() ([]domain.Order, error) {
 			&order.CustomerPhone,
 			&order.CustomerTelegramID,
 			&order.CustomerTelegramTag,
+			&fromCityName,
+			&toCityName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
 		}
 
 		order.Tags = []string(tags)
+
+		// Устанавливаем названия городов
+		if fromCityName != "" {
+			order.FromCityName = &fromCityName
+		}
+		if toCityName != "" {
+			order.ToCityName = &toCityName
+		}
+
 		orders = append(orders, order)
 	}
 
@@ -163,8 +183,10 @@ func (d *Database) GetActiveOrders() ([]domain.Order, error) {
 			o.length_cm,
 			o.width_cm,
 			o.height_cm,
-			o.from_location,
-			o.to_location,
+			o.from_city_uuid,
+			o.from_address,
+			o.to_city_uuid,
+			o.to_address,
 			o.tags,
 			o.price,
 			o.available_from,
@@ -173,9 +195,13 @@ func (d *Database) GetActiveOrders() ([]domain.Order, error) {
 			c.name as customer_name,
 			c.phone as customer_phone,
 			c.telegram_id as customer_telegram_id,
-			c.telegram_tag as customer_telegram_tag
+			c.telegram_tag as customer_telegram_tag,
+			COALESCE(fc.name, '') as from_city_name,
+			COALESCE(tc.name, '') as to_city_name
 		FROM orders o
 		JOIN customers c ON o.customer_uuid = c.uuid
+		LEFT JOIN cities fc ON o.from_city_uuid = fc.uuid
+		LEFT JOIN cities tc ON o.to_city_uuid = tc.uuid
 		WHERE o.status = 'active'
 		ORDER BY o.created_at DESC
 	`
@@ -190,6 +216,7 @@ func (d *Database) GetActiveOrders() ([]domain.Order, error) {
 	for rows.Next() {
 		var order domain.Order
 		var tags pq.StringArray
+		var fromCityName, toCityName string
 
 		err := rows.Scan(
 			&order.UUID,
@@ -200,8 +227,10 @@ func (d *Database) GetActiveOrders() ([]domain.Order, error) {
 			&order.LengthCm,
 			&order.WidthCm,
 			&order.HeightCm,
-			&order.FromLocation,
-			&order.ToLocation,
+			&order.FromCityUUID,
+			&order.FromAddress,
+			&order.ToCityUUID,
+			&order.ToAddress,
 			&tags,
 			&order.Price,
 			&order.AvailableFrom,
@@ -211,12 +240,23 @@ func (d *Database) GetActiveOrders() ([]domain.Order, error) {
 			&order.CustomerPhone,
 			&order.CustomerTelegramID,
 			&order.CustomerTelegramTag,
+			&fromCityName,
+			&toCityName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
 		}
 
 		order.Tags = []string(tags)
+
+		// Устанавливаем названия городов
+		if fromCityName != "" {
+			order.FromCityName = &fromCityName
+		}
+		if toCityName != "" {
+			order.ToCityName = &toCityName
+		}
+
 		orders = append(orders, order)
 	}
 
@@ -239,8 +279,10 @@ func (d *Database) GetOrdersByStatus(status string) ([]domain.Order, error) {
 			o.length_cm,
 			o.width_cm,
 			o.height_cm,
-			o.from_location,
-			o.to_location,
+			o.from_city_uuid,
+			o.from_address,
+			o.to_city_uuid,
+			o.to_address,
 			o.tags,
 			o.price,
 			o.available_from,
@@ -249,9 +291,13 @@ func (d *Database) GetOrdersByStatus(status string) ([]domain.Order, error) {
 			c.name as customer_name,
 			c.phone as customer_phone,
 			c.telegram_id as customer_telegram_id,
-			c.telegram_tag as customer_telegram_tag
+			c.telegram_tag as customer_telegram_tag,
+			COALESCE(fc.name, '') as from_city_name,
+			COALESCE(tc.name, '') as to_city_name
 		FROM orders o
 		JOIN customers c ON o.customer_uuid = c.uuid
+		LEFT JOIN cities fc ON o.from_city_uuid = fc.uuid
+		LEFT JOIN cities tc ON o.to_city_uuid = tc.uuid
 		WHERE o.status = $1
 		ORDER BY o.created_at DESC
 	`
@@ -266,6 +312,7 @@ func (d *Database) GetOrdersByStatus(status string) ([]domain.Order, error) {
 	for rows.Next() {
 		var order domain.Order
 		var tags pq.StringArray
+		var fromCityName, toCityName string
 
 		err := rows.Scan(
 			&order.UUID,
@@ -276,8 +323,10 @@ func (d *Database) GetOrdersByStatus(status string) ([]domain.Order, error) {
 			&order.LengthCm,
 			&order.WidthCm,
 			&order.HeightCm,
-			&order.FromLocation,
-			&order.ToLocation,
+			&order.FromCityUUID,
+			&order.FromAddress,
+			&order.ToCityUUID,
+			&order.ToAddress,
 			&tags,
 			&order.Price,
 			&order.AvailableFrom,
@@ -287,12 +336,23 @@ func (d *Database) GetOrdersByStatus(status string) ([]domain.Order, error) {
 			&order.CustomerPhone,
 			&order.CustomerTelegramID,
 			&order.CustomerTelegramTag,
+			&fromCityName,
+			&toCityName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
 		}
 
 		order.Tags = []string(tags)
+
+		// Устанавливаем названия городов
+		if fromCityName != "" {
+			order.FromCityName = &fromCityName
+		}
+		if toCityName != "" {
+			order.ToCityName = &toCityName
+		}
+
 		orders = append(orders, order)
 	}
 
@@ -344,8 +404,10 @@ func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]doma
 			o.length_cm,
 			o.width_cm,
 			o.height_cm,
-			o.from_location,
-			o.to_location,
+			o.from_city_uuid,
+			o.from_address,
+			o.to_city_uuid,
+			o.to_address,
 			o.tags,
 			o.price,
 			o.available_from,
@@ -354,9 +416,13 @@ func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]doma
 			c.name as customer_name,
 			c.phone as customer_phone,
 			c.telegram_id as customer_telegram_id,
-			c.telegram_tag as customer_telegram_tag
+			c.telegram_tag as customer_telegram_tag,
+			COALESCE(fc.name, '') as from_city_name,
+			COALESCE(tc.name, '') as to_city_name
 		FROM orders o
 		JOIN customers c ON o.customer_uuid = c.uuid
+		LEFT JOIN cities fc ON o.from_city_uuid = fc.uuid
+		LEFT JOIN cities tc ON o.to_city_uuid = tc.uuid
 	`
 
 	// Формируем WHERE условие в зависимости от переданных параметров
@@ -388,6 +454,7 @@ func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]doma
 	for rows.Next() {
 		var order domain.Order
 		var tags pq.StringArray
+		var fromCityName, toCityName string
 
 		err := rows.Scan(
 			&order.UUID,
@@ -398,8 +465,10 @@ func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]doma
 			&order.LengthCm,
 			&order.WidthCm,
 			&order.HeightCm,
-			&order.FromLocation,
-			&order.ToLocation,
+			&order.FromCityUUID,
+			&order.FromAddress,
+			&order.ToCityUUID,
+			&order.ToAddress,
 			&tags,
 			&order.Price,
 			&order.AvailableFrom,
@@ -409,12 +478,23 @@ func (d *Database) GetOrdersByWeightRange(minWeight, maxWeight *float64) ([]doma
 			&order.CustomerPhone,
 			&order.CustomerTelegramID,
 			&order.CustomerTelegramTag,
+			&fromCityName,
+			&toCityName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("ошибка сканирования строки: %v", err)
 		}
 
 		order.Tags = []string(tags)
+
+		// Устанавливаем названия городов
+		if fromCityName != "" {
+			order.FromCityName = &fromCityName
+		}
+		if toCityName != "" {
+			order.ToCityName = &toCityName
+		}
+
 		orders = append(orders, order)
 	}
 
@@ -575,9 +655,9 @@ func (d *Database) CreateOrder(order *domain.Order) error {
 	query := `
 		INSERT INTO orders (
 			uuid, customer_uuid, title, description, weight_kg, 
-			length_cm, width_cm, height_cm, from_location, to_location, 
-			tags, price, available_from, status, created_at
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+			length_cm, width_cm, height_cm, from_city_uuid, from_address, 
+			to_city_uuid, to_address, tags, price, available_from, status, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 	`
 
 	_, err := d.DB.Exec(query,
@@ -589,8 +669,10 @@ func (d *Database) CreateOrder(order *domain.Order) error {
 		order.LengthCm,
 		order.WidthCm,
 		order.HeightCm,
-		order.FromLocation,
-		order.ToLocation,
+		order.FromCityUUID,
+		order.FromAddress,
+		order.ToCityUUID,
+		order.ToAddress,
 		pq.Array(order.Tags),
 		order.Price,
 		order.AvailableFrom,
