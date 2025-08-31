@@ -13,6 +13,7 @@ import (
 	"dalnoboy/internal/service"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/google/uuid"
 )
 
 // AdminBot представляет админского бота
@@ -365,6 +366,69 @@ func (ab *AdminBot) parseOrderMessage(text string) (*domain.Order, error) {
 	return order, nil
 }
 
+// parseSetCityAndNotificationMessage парсит сообщение с командой настройки города и уведомлений водителя
+// Формат: SET_CITY_AND_NOTIFICATION, <driver_uuid>, <city_name_or_-_or_empty>, <вкл/выкл_or_empty>
+func (ab *AdminBot) parseSetCityAndNotificationMessage(text string) (*domain.SetCityAndNotificationRequest, error) {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	if len(lines) < 2 {
+		return nil, fmt.Errorf("недостаточно данных. Нужно минимум: SET_CITY_AND_NOTIFICATION + параметры")
+	}
+
+	// Проверяем ключ
+	if lines[0] != "SET_CITY_AND_NOTIFICATION" {
+		return nil, fmt.Errorf("неверный ключ. Ожидается SET_CITY_AND_NOTIFICATION")
+	}
+
+	// Парсим параметры
+	params := strings.Split(lines[1], ",")
+	if len(params) < 1 {
+		return nil, fmt.Errorf("неверный формат параметров. Ожидается: UUID, город, уведомления")
+	}
+
+	// UUID водителя (обязательный параметр)
+	driverUUIDStr := strings.TrimSpace(params[0])
+	if driverUUIDStr == "" {
+		return nil, fmt.Errorf("UUID водителя не может быть пустым")
+	}
+
+	driverUUID, err := uuid.Parse(driverUUIDStr)
+	if err != nil {
+		return nil, fmt.Errorf("неверный формат UUID водителя: %v", err)
+	}
+
+	// Город (опциональный параметр)
+	var cityName string
+	if len(params) > 1 {
+		cityName = strings.TrimSpace(params[1])
+	}
+
+	// Статус уведомлений (опциональный параметр)
+	var notificationEnabled *bool
+	if len(params) > 2 {
+		notificationStr := strings.TrimSpace(params[2])
+		if notificationStr != "" {
+			switch strings.ToLower(notificationStr) {
+			case "вкл", "включить", "true", "1", "on":
+				enabled := true
+				notificationEnabled = &enabled
+			case "выкл", "выключить", "false", "0", "off":
+				enabled := false
+				notificationEnabled = &enabled
+			default:
+				return nil, fmt.Errorf("неверный формат статуса уведомлений. Используйте: вкл/выкл, включить/выключить, true/false, 1/0, on/off")
+			}
+		}
+	}
+
+	request := &domain.SetCityAndNotificationRequest{
+		DriverUUID:          driverUUID,
+		CityName:            cityName,
+		NotificationEnabled: notificationEnabled,
+	}
+
+	return request, nil
+}
+
 // parseTelegramID парсит Telegram ID из строки
 func parseTelegramID(text string) (int64, error) {
 	return strconv.ParseInt(strings.TrimSpace(text), 10, 64)
@@ -435,7 +499,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		response = "Добро пожаловать в админскую панель! Выберите действие."
 		keyboard = adminMainMenuKeyboard()
 	case "/help", "❓ Помощь":
-		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/👥 Заказчики - Посмотреть заказчиков\n/🚚 Водители - Посмотреть водителей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/👥 Заказчики - Посмотреть заказчиков\n/🚚 Водители - Посмотреть водителей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>\n\nДля настройки города и уведомлений водителя используйте формат:\nSET_CITY_AND_NOTIFICATION\nUUID, город, уведомления\n\nПримеры:\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, выкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, -, \nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, выкл"
 	case "/status":
 		// Получаем статистику из базы данных
 		ordersCount, err := ab.database.GetOrdersCount()
@@ -641,8 +705,48 @@ ADD_ORDER
 			}
 			// Сбрасываем состояние создания заказа
 			keyboard = ordersMenuKeyboard()
+		} else if strings.HasPrefix(text, "SET_CITY_AND_NOTIFICATION") {
+			// Парсим и выполняем команду настройки города и уведомлений водителя
+			request, err := ab.parseSetCityAndNotificationMessage(text)
+			if err != nil {
+				response = fmt.Sprintf("❌ Ошибка парсинга команды: %v\n\nПроверьте формат и попробуйте снова.", err)
+			} else {
+				// Выполняем обновление через сервис
+				err := ab.driverService.UpdateDriverCityAndNotifications(
+					request.DriverUUID,
+					request.CityName,
+					request.NotificationEnabled,
+				)
+				if err != nil {
+					response = fmt.Sprintf("❌ Ошибка обновления данных водителя: %v", err)
+				} else {
+					// Формируем сообщение об успехе
+					var cityMsg, notificationMsg string
+
+					if request.CityName == "-" {
+						cityMsg = "город очищен"
+					} else if request.CityName != "" {
+						cityMsg = fmt.Sprintf("город установлен: %s", request.CityName)
+					} else {
+						cityMsg = "город не изменен"
+					}
+
+					if request.NotificationEnabled != nil {
+						if *request.NotificationEnabled {
+							notificationMsg = "уведомления включены"
+						} else {
+							notificationMsg = "уведомления выключены"
+						}
+					} else {
+						notificationMsg = "уведомления не изменены"
+					}
+
+					response = fmt.Sprintf("✅ Данные водителя успешно обновлены!\n\n🚚 UUID: %s\n🏙️ %s\n🔔 %s",
+						request.DriverUUID.String()[:8], cityMsg, notificationMsg)
+				}
+			}
 		} else {
-			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления заказчика используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>"
+			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления заказчика используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>\n\nДля настройки города и уведомлений водителя используйте формат:\nSET_CITY_AND_NOTIFICATION\nUUID, город, уведомления\n\nПримеры:\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, выкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, -, \nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, выкл"
 		}
 
 		// Проверяем команды изменения статуса заказов

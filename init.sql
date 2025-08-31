@@ -20,7 +20,7 @@ CREATE TABLE drivers (
   telegram_id             BIGINT   NOT NULL UNIQUE,
   telegram_tag            TEXT,                   -- @username
   notification_enabled    BOOLEAN  NOT NULL DEFAULT true,
-  city_uuid               UUID      NOT NULL REFERENCES cities(uuid) ON DELETE RESTRICT,
+  city_uuid               UUID      REFERENCES cities(uuid) ON DELETE RESTRICT,
   created_at              TIMESTAMP NOT NULL DEFAULT now()
 );
 

@@ -97,7 +97,9 @@ INSERT INTO drivers (name, telegram_id, telegram_tag, city_uuid) VALUES
     ('Олег Новиков', 159951159, '@oleg_novikov', (SELECT uuid FROM cities WHERE name = 'Оренбург' LIMIT 1)),
     ('Семен Морозов', 753357753, '@semen_morozov', (SELECT uuid FROM cities WHERE name = 'Кемерово' LIMIT 1)),
     ('Федор Петров', 951753951, '@fedor_petrov', (SELECT uuid FROM cities WHERE name = 'Рязань' LIMIT 1)),
-    ('Константин Сидоров', 357159357, '@konstantin_sidorov', (SELECT uuid FROM cities WHERE name = 'Астрахань' LIMIT 1));
+    ('Константин Сидоров', 357159357, '@konstantin_sidorov', (SELECT uuid FROM cities WHERE name = 'Астрахань' LIMIT 1)),
+    ('Василий Безгородов', 111111111, '@vasily_no_city', NULL),
+    ('Петр Неопределенный', 222222222, '@petr_undefined', NULL);
 
 -- Вставляем 30 тестовых клиентов
 INSERT INTO customers (name, phone, telegram_id, telegram_tag) VALUES 

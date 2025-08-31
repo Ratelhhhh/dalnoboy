@@ -713,7 +713,7 @@ func (d *Database) GetAllDrivers() ([]domain.Driver, error) {
 	for rows.Next() {
 		var driver domain.Driver
 		var uuidStr string
-		var cityUUIDStr string
+		var cityUUIDStr sql.NullString
 		err := rows.Scan(
 			&uuidStr,
 			&driver.Name,
@@ -735,11 +735,16 @@ func (d *Database) GetAllDrivers() ([]domain.Driver, error) {
 		}
 		driver.UUID = driverUUID
 
-		cityUUID, err := uuid.Parse(cityUUIDStr)
-		if err != nil {
-			return nil, fmt.Errorf("ошибка парсинга UUID города: %v", err)
+		// Обрабатываем city_uuid (может быть NULL)
+		if cityUUIDStr.Valid && cityUUIDStr.String != "" {
+			cityUUID, err := uuid.Parse(cityUUIDStr.String)
+			if err != nil {
+				return nil, fmt.Errorf("ошибка парсинга UUID города: %v", err)
+			}
+			driver.CityUUID = &cityUUID
+		} else {
+			driver.CityUUID = nil
 		}
-		driver.CityUUID = cityUUID
 
 		drivers = append(drivers, driver)
 	}
@@ -749,4 +754,126 @@ func (d *Database) GetAllDrivers() ([]domain.Driver, error) {
 	}
 
 	return drivers, nil
+}
+
+// GetCityByName возвращает город по названию
+func (d *Database) GetCityByName(cityName string) (*domain.City, error) {
+	query := `
+		SELECT uuid, name
+		FROM cities
+		WHERE name = $1
+	`
+
+	var city domain.City
+	var uuidStr string
+	err := d.DB.QueryRow(query, cityName).Scan(&uuidStr, &city.Name)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Город не найден
+		}
+		return nil, fmt.Errorf("ошибка получения города по названию: %v", err)
+	}
+
+	// Парсим UUID из строки
+	cityUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга UUID города: %v", err)
+	}
+	city.UUID = cityUUID
+
+	return &city, nil
+}
+
+// GetCityByUUID возвращает город по UUID
+func (d *Database) GetCityByUUID(cityUUID uuid.UUID) (*domain.City, error) {
+	query := `
+		SELECT uuid, name
+		FROM cities
+		WHERE uuid = $1
+	`
+
+	var city domain.City
+	var uuidStr string
+	err := d.DB.QueryRow(query, cityUUID).Scan(&uuidStr, &city.Name)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Город не найден
+		}
+		return nil, fmt.Errorf("ошибка получения города по UUID: %v", err)
+	}
+
+	// Парсим UUID из строки
+	cityUUIDParsed, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга UUID города: %v", err)
+	}
+	city.UUID = cityUUIDParsed
+
+	return &city, nil
+}
+
+// UpdateDriverCity обновляет город водителя
+func (d *Database) UpdateDriverCity(driverUUID uuid.UUID, cityUUID *uuid.UUID) error {
+	var query string
+	var args []interface{}
+
+	if cityUUID == nil {
+		// Убираем город (устанавливаем NULL)
+		query = "UPDATE drivers SET city_uuid = NULL WHERE uuid = $1"
+		args = []interface{}{driverUUID}
+	} else {
+		// Устанавливаем город
+		query = "UPDATE drivers SET city_uuid = $1 WHERE uuid = $2"
+		args = []interface{}{cityUUID, driverUUID}
+	}
+
+	_, err := d.DB.Exec(query, args...)
+	if err != nil {
+		return fmt.Errorf("ошибка обновления города водителя: %v", err)
+	}
+
+	return nil
+}
+
+// UpdateDriverNotifications обновляет статус уведомлений водителя
+func (d *Database) UpdateDriverNotifications(driverUUID uuid.UUID, notificationEnabled bool) error {
+	query := "UPDATE drivers SET notification_enabled = $1 WHERE uuid = $2"
+
+	_, err := d.DB.Exec(query, notificationEnabled, driverUUID)
+	if err != nil {
+		return fmt.Errorf("ошибка обновления статуса уведомлений водителя: %v", err)
+	}
+
+	return nil
+}
+
+// UpdateDriverCityAndNotifications обновляет город и статус уведомлений водителя
+func (d *Database) UpdateDriverCityAndNotifications(driverUUID uuid.UUID, cityUUID *uuid.UUID, notificationEnabled *bool) error {
+	var query string
+	var args []interface{}
+
+	// Формируем запрос в зависимости от переданных параметров
+	if cityUUID != nil && notificationEnabled != nil {
+		// Обновляем и город, и уведомления
+		query = "UPDATE drivers SET city_uuid = $1, notification_enabled = $2 WHERE uuid = $3"
+		args = []interface{}{cityUUID, notificationEnabled, driverUUID}
+	} else if cityUUID != nil {
+		// Обновляем только город
+		query = "UPDATE drivers SET city_uuid = $1 WHERE uuid = $2"
+		args = []interface{}{cityUUID, driverUUID}
+	} else if notificationEnabled != nil {
+		// Обновляем только уведомления
+		query = "UPDATE drivers SET notification_enabled = $1 WHERE uuid = $2"
+		args = []interface{}{notificationEnabled, driverUUID}
+	} else {
+		// Ничего не обновляем
+		return nil
+	}
+
+	_, err := d.DB.Exec(query, args...)
+	if err != nil {
+		return fmt.Errorf("ошибка обновления данных водителя: %v", err)
+	}
+
+	return nil
 }
