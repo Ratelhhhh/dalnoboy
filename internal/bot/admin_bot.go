@@ -669,7 +669,7 @@ ADD_ORDER
 		} else {
 			response = ab.formatCustomers(customers)
 		}
-		keyboard = usersMenuKeyboard()
+		keyboard = adminMainMenuKeyboard()
 	case "/drivers", "🚚 Водители":
 		// Получаем водителей через сервис
 		drivers, err := ab.driverService.GetAllDrivers()
@@ -679,7 +679,7 @@ ADD_ORDER
 		} else {
 			response = ab.formatDrivers(drivers)
 		}
-		keyboard = driversMenuKeyboard()
+		keyboard = adminMainMenuKeyboard()
 
 	// Закомментировано - убираем функционал фильтров
 	/*
