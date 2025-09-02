@@ -957,6 +957,16 @@ func (d *Database) UpdateDriverCityAndNotifications(driverUUID uuid.UUID, cityUU
 	return nil
 }
 
+// UpdateDriverIdentity обновляет имя и тег Telegram водителя
+func (d *Database) UpdateDriverIdentity(driverUUID uuid.UUID, name string, telegramTag *string) error {
+	query := "UPDATE drivers SET name = $1, telegram_tag = $2 WHERE uuid = $3"
+	_, err := d.DB.Exec(query, name, telegramTag, driverUUID)
+	if err != nil {
+		return fmt.Errorf("ошибка обновления имени/тега водителя: %v", err)
+	}
+	return nil
+}
+
 // CreateCity создает новый город в базе данных
 func (d *Database) CreateCity(city *domain.City) error {
 	query := `

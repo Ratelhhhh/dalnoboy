@@ -116,6 +116,24 @@ func (ds *DriverService) EnsureDriverExistsByTelegram(name string, telegramID in
 		return nil, err
 	}
 	if existing != nil {
+		// При наличии существующего водителя, при необходимости обновим имя/тег
+		needUpdate := false
+		if existing.Name != name {
+			needUpdate = true
+		}
+		if (existing.TelegramTag == nil && telegramTag != nil) || (existing.TelegramTag != nil && telegramTag == nil) {
+			needUpdate = true
+		} else if existing.TelegramTag != nil && telegramTag != nil && *existing.TelegramTag != *telegramTag {
+			needUpdate = true
+		}
+		if needUpdate {
+			if err := ds.database.UpdateDriverIdentity(existing.UUID, name, telegramTag); err != nil {
+				return nil, err
+			}
+			// Обновим локальную структуру, чтобы вернуть актуальные данные
+			existing.Name = name
+			existing.TelegramTag = telegramTag
+		}
 		return existing, nil
 	}
 	return ds.CreateDriver(name, telegramID, telegramTag)
