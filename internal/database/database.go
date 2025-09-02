@@ -22,6 +22,7 @@ type Database struct {
 var _ domain.OrderRepository = (*Database)(nil)
 var _ domain.CustomerRepository = (*Database)(nil)
 var _ domain.DriverRepository = (*Database)(nil)
+var _ domain.CityRepository = (*Database)(nil)
 
 // New создает новое подключение к базе данных
 func New(config *internal.Config) (*Database, error) {
@@ -873,6 +874,21 @@ func (d *Database) UpdateDriverCityAndNotifications(driverUUID uuid.UUID, cityUU
 	_, err := d.DB.Exec(query, args...)
 	if err != nil {
 		return fmt.Errorf("ошибка обновления данных водителя: %v", err)
+	}
+
+	return nil
+}
+
+// CreateCity создает новый город в базе данных
+func (d *Database) CreateCity(city *domain.City) error {
+	query := `
+		INSERT INTO cities (uuid, name)
+		VALUES ($1, $2)
+	`
+
+	_, err := d.DB.Exec(query, city.UUID, city.Name)
+	if err != nil {
+		return fmt.Errorf("ошибка создания города: %v", err)
 	}
 
 	return nil

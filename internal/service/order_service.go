@@ -13,12 +13,14 @@ import (
 // OrderService представляет сервис для работы с заказами
 type OrderService struct {
 	database *database.Database
+	cityRepo domain.CityRepository
 }
 
 // NewOrderService создает новый экземпляр сервиса заказов
-func NewOrderService(db *database.Database) *OrderService {
+func NewOrderService(db *database.Database, cityRepo domain.CityRepository) *OrderService {
 	return &OrderService{
 		database: db,
+		cityRepo: cityRepo,
 	}
 }
 
@@ -71,6 +73,90 @@ func (os *OrderService) CreateOrder(
 		Status:        domain.OrderStatusActive,
 		CreatedAt:     time.Now(),
 	}
+
+	// Сохраняем в базу данных
+	err := os.database.CreateOrder(order)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка сохранения заказа: %v", err)
+	}
+
+	return order, nil
+}
+
+// CreateOrderFromTgRequest создает новый заказ из упрощенного Telegram-запроса
+func (os *OrderService) CreateOrderFromTgRequest(request *domain.CreateOrderTgRequest) (*domain.Order, error) {
+	// Проверяем, что customerUUID не пустой
+	if request.CustomerUUID == "" {
+		return nil, fmt.Errorf("customerUUID не может быть пустым")
+	}
+
+	// Проверяем обязательные поля
+	if request.Title == "" {
+		return nil, fmt.Errorf("название заказа не может быть пустым")
+	}
+	if request.Description == "" {
+		return nil, fmt.Errorf("описание заказа не может быть пустым")
+	}
+	if request.WeightKg <= 0 {
+		return nil, fmt.Errorf("вес должен быть больше нуля")
+	}
+	if request.Price <= 0 {
+		return nil, fmt.Errorf("цена должна быть больше нуля")
+	}
+
+	// Ищем UUID городов по названиям
+	var fromCityUUID, toCityUUID *string
+
+	if request.FromCityName != "" {
+		fromCity, err := os.cityRepo.GetCityByName(request.FromCityName)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка поиска города отправления '%s': %v", request.FromCityName, err)
+		}
+		if fromCity == nil {
+			return nil, fmt.Errorf("город отправления '%s' не найден в базе данных", request.FromCityName)
+		}
+		fromCityUUIDStr := fromCity.UUID.String()
+		fromCityUUID = &fromCityUUIDStr
+	}
+
+	if request.ToCityName != "" {
+		toCity, err := os.cityRepo.GetCityByName(request.ToCityName)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка поиска города назначения '%s': %v", request.ToCityName, err)
+		}
+		if toCity == nil {
+			return nil, fmt.Errorf("город назначения '%s' не найден в базе данных", request.ToCityName)
+		}
+		toCityUUIDStr := toCity.UUID.String()
+		toCityUUID = &toCityUUIDStr
+	}
+
+	// Создаем новый заказ
+	order := &domain.Order{
+		UUID:          uuid.New().String(),
+		CustomerUUID:  request.CustomerUUID,
+		Title:         request.Title,
+		Description:   request.Description,
+		WeightKg:      request.WeightKg,
+		LengthCm:      nil, // Упрощенный формат не включает размеры
+		WidthCm:       nil,
+		HeightCm:      nil,
+		FromCityUUID:  fromCityUUID, // Теперь используем найденные UUID
+		FromAddress:   &request.FromAddress,
+		FromCityName:  &request.FromCityName,
+		ToCityUUID:    toCityUUID, // Теперь используем найденные UUID
+		ToAddress:     &request.ToAddress,
+		ToCityName:    &request.ToCityName,
+		Tags:          []string{}, // Упрощенный формат не включает теги, передаем пустой массив
+		Price:         request.Price,
+		AvailableFrom: nil, // Упрощенный формат не включает дату
+		Status:        domain.OrderStatusActive,
+		CreatedAt:     time.Now(),
+	}
+
+	// Логируем создание заказа для отладки
+	fmt.Printf("Создаем заказ: UUID=%s, FromCityUUID=%v, ToCityUUID=%v, Tags=%v\n",
+		order.UUID, order.FromCityUUID, order.ToCityUUID, order.Tags)
 
 	// Сохраняем в базу данных
 	err := os.database.CreateOrder(order)

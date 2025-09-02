@@ -26,7 +26,7 @@ type AdminBot struct {
 }
 
 // NewAdminBot создает новый экземпляр админского бота
-func NewAdminBot(config *internal.Config, db *database.Database) (*AdminBot, error) {
+func NewAdminBot(config *internal.Config, db *database.Database, orderService *service.OrderService, customerService *service.CustomerService, driverService *service.DriverService) (*AdminBot, error) {
 	log.Printf("Инициализация админского бота с токеном: %s...", config.Bot.AdminToken[:10]+"...")
 
 	bot, err := tgbotapi.NewBotAPI(config.Bot.AdminToken)
@@ -40,9 +40,9 @@ func NewAdminBot(config *internal.Config, db *database.Database) (*AdminBot, err
 	return &AdminBot{
 		bot:             bot,
 		database:        db,
-		orderService:    service.NewOrderService(db),
-		customerService: service.NewCustomerService(db),
-		driverService:   service.NewDriverService(db),
+		orderService:    orderService,
+		customerService: customerService,
+		driverService:   driverService,
 	}, nil
 }
 
@@ -285,12 +285,12 @@ func (ab *AdminBot) parseCustomerMessage(text string) (*domain.Customer, error) 
 	return customer, nil
 }
 
-// parseOrderMessage парсит сообщение с данными заказа
+// parseOrderMessage парсит сообщение с данными заказа (старый формат)
 // Формат: ADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента
 func (ab *AdminBot) parseOrderMessage(text string) (*domain.Order, error) {
 	lines := strings.Split(strings.TrimSpace(text), "\n")
 	if len(lines) < 15 {
-		return nil, fmt.Errorf("недостаточно данных. Нужно 15 строк: ADD_ORDER + 14 полей")
+		return nil, fmt.Errorf("недостаточно данных. Нужно 15 строк: ADD_ORDER + 14 полей (старый формат)")
 	}
 
 	// Проверяем ключ
@@ -429,6 +429,69 @@ func (ab *AdminBot) parseSetCityAndNotificationMessage(text string) (*domain.Set
 	return request, nil
 }
 
+// parseOrderTgMessage парсит упрощенное сообщение с данными заказа для Telegram
+// Формат: ADD_ORDER\nНазвание\nОписание\nВес\nОткуда город\nОткуда адрес\nКуда город\nКуда адрес\nЦена\nUUID клиента
+func (ab *AdminBot) parseOrderTgMessage(text string) (*domain.CreateOrderTgRequest, error) {
+	lines := strings.Split(strings.TrimSpace(text), "\n")
+	if len(lines) < 10 {
+		return nil, fmt.Errorf("недостаточно данных. Нужно 10 строк: ADD_ORDER + 9 полей")
+	}
+
+	// Проверяем ключ
+	if lines[0] != "ADD_ORDER" {
+		return nil, fmt.Errorf("неверный ключ. Ожидается ADD_ORDER")
+	}
+
+	title := strings.TrimSpace(lines[1])
+	description := strings.TrimSpace(lines[2])
+
+	if title == "" || description == "" {
+		return nil, fmt.Errorf("название и описание не могут быть пустыми")
+	}
+
+	// Парсим вес
+	weightKg, err := parseFloat(lines[3])
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга веса: %v", err)
+	}
+
+	// Парсим локации
+	fromCityName := strings.TrimSpace(lines[4])
+	fromAddress := strings.TrimSpace(lines[5])
+	toCityName := strings.TrimSpace(lines[6])
+	toAddress := strings.TrimSpace(lines[7])
+
+	if fromCityName == "" || fromAddress == "" || toCityName == "" || toAddress == "" {
+		return nil, fmt.Errorf("названия городов и адреса не могут быть пустыми")
+	}
+
+	// Парсим цену
+	price, err := parseFloat(lines[8])
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга цены: %v", err)
+	}
+
+	// Парсим UUID клиента
+	customerUUID := strings.TrimSpace(lines[9])
+	if customerUUID == "" {
+		return nil, fmt.Errorf("UUID клиента не может быть пустым")
+	}
+
+	request := &domain.CreateOrderTgRequest{
+		Title:        title,
+		Description:  description,
+		WeightKg:     weightKg,
+		FromCityName: fromCityName,
+		FromAddress:  fromAddress,
+		ToCityName:   toCityName,
+		ToAddress:    toAddress,
+		Price:        price,
+		CustomerUUID: customerUUID,
+	}
+
+	return request, nil
+}
+
 // parseTelegramID парсит Telegram ID из строки
 func parseTelegramID(text string) (int64, error) {
 	return strconv.ParseInt(strings.TrimSpace(text), 10, 64)
@@ -499,7 +562,7 @@ func (ab *AdminBot) handleMessage(message *tgbotapi.Message) {
 		response = "Добро пожаловать в админскую панель! Выберите действие."
 		keyboard = adminMainMenuKeyboard()
 	case "/help", "❓ Помощь":
-		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/👥 Заказчики - Посмотреть заказчиков\n/🚚 Водители - Посмотреть водителей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>\n\nДля настройки города и уведомлений водителя используйте формат:\nSET_CITY_AND_NOTIFICATION\nUUID, город, уведомления\n\nПримеры:\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, выкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, -, \nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, выкл"
+		response = "Доступные команды:\n/start - Начать работу\n/help - Показать помощь\n/status - Статус системы\n/orders - Посмотреть заказы\n/👥 Заказчики - Посмотреть заказчиков\n/🚚 Водители - Посмотреть водителей\n// Закомментировано - убираем фильтры\n// /filter - Настроить фильтры\n\nДля добавления пользователя используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nОткуда город\nОткуда адрес\nКуда город\nКуда адрес\nЦена\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>\n\nДля настройки города и уведомлений водителя используйте формат:\nSET_CITY_AND_NOTIFICATION\nUUID, город, уведомления\n\nПримеры:\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, выкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, -, \nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, выкл"
 	case "/status":
 		// Получаем статистику из базы данных
 		ordersCount, err := ab.database.GetOrdersCount()
@@ -556,14 +619,11 @@ ADD_ORDER
 Название заказа
 Описание заказа
 Вес (кг)
-Длина (см) или -
-Ширина (см) или -
-Высота (см) или -
-Откуда или -
-Куда или -
-Теги через запятую или -
+Откуда город
+Откуда адрес
+Куда город
+Куда адрес
 Цена (руб)
-Дата доступности (YYYY-MM-DD) или -
 UUID клиента
 
 Пример:
@@ -571,14 +631,11 @@ ADD_ORDER
 Доставка мебели
 Требуется доставка дивана и стола
 25.5
-200
-80
-60
 Москва
+ул. Тверская, д. 1
 Санкт-Петербург
-Мебель, Хрупкий
+Невский проспект, д. 10
 15000
-2025-01-15
 12345678-1234-1234-1234-123456789abc
 
 Отправьте сообщение с данными заказа в указанном формате.`
@@ -670,35 +727,22 @@ ADD_ORDER
 				}
 			}
 		} else if strings.HasPrefix(text, "ADD_ORDER") {
-			// Парсим и создаем заказ
-			order, err := ab.parseOrderMessage(text)
+			// Парсим и создаем заказ через упрощенный формат
+			request, err := ab.parseOrderTgMessage(text)
 			if err != nil {
 				response = fmt.Sprintf("❌ Ошибка парсинга данных заказа: %v\n\nПроверьте формат и попробуйте снова.", err)
 			} else {
 				// Создаем заказ через сервис
-				createdOrder, err := ab.orderService.CreateOrder(
-					order.CustomerUUID,
-					order.Title,
-					order.Description,
-					order.WeightKg,
-					order.LengthCm,
-					order.WidthCm,
-					order.HeightCm,
-					order.FromCityUUID,
-					order.FromAddress,
-					order.ToCityUUID,
-					order.ToAddress,
-					order.Tags,
-					order.Price,
-					order.AvailableFrom,
-				)
+				createdOrder, err := ab.orderService.CreateOrderFromTgRequest(request)
 				if err != nil {
 					response = fmt.Sprintf("❌ Ошибка создания заказа: %v", err)
 				} else {
-					response = fmt.Sprintf("✅ Заказ успешно создан!\n\n📝 %s\n📄 %s\n⚖️ %.1f кг\n💰 %.0f ₽\n🆔 ID: %s",
+					response = fmt.Sprintf("✅ Заказ успешно создан!\n\n📝 %s\n📄 %s\n⚖️ %.1f кг\n🏙️ %s → %s\n💰 %.0f ₽\n🆔 ID: %s",
 						createdOrder.Title,
 						createdOrder.Description,
 						createdOrder.WeightKg,
+						*createdOrder.FromCityName,
+						*createdOrder.ToCityName,
 						createdOrder.Price,
 						createdOrder.UUID)
 				}
@@ -745,34 +789,32 @@ ADD_ORDER
 						request.DriverUUID.String()[:8], cityMsg, notificationMsg)
 				}
 			}
-		} else {
-			response = "Неизвестная команда. Используйте кнопки меню или /help для списка команд.\n\nДля добавления заказчика используйте формат:\nADD_USER\nИмя\nТелефон\nTelegramID\nTelegramTag\n\nДля создания заказа используйте формат:\nADD_ORDER\nНазвание\nОписание\nВес\nДлина\nШирина\nВысота\nОткуда город UUID\nОткуда адрес\nКуда город UUID\nКуда адрес\nТеги\nЦена\nДата\nUUID клиента\n\nДля изменения статуса заказа используйте формат:\nARCHIVE_ORDER <UUID>\nACTIVATE_ORDER <UUID>\n\nДля настройки города и уведомлений водителя используйте формат:\nSET_CITY_AND_NOTIFICATION\nUUID, город, уведомления\n\nПримеры:\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва, выкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, Москва\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc, -, \nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, вкл\nSET_CITY_AND_NOTIFICATION\n12345678-1234-1234-1234-123456789abc,, выкл"
 		}
+	}
 
-		// Проверяем команды изменения статуса заказов
-		if strings.HasPrefix(text, "ARCHIVE_ORDER ") {
-			orderUUID := strings.TrimSpace(strings.TrimPrefix(text, "ARCHIVE_ORDER "))
-			if orderUUID == "" {
-				response = "❌ Укажите UUID заказа для архивирования\n\nПример: ARCHIVE_ORDER 12345678-1234-1234-1234-123456789abc"
+	// Проверяем команды изменения статуса заказов
+	if strings.HasPrefix(text, "ARCHIVE_ORDER ") {
+		orderUUID := strings.TrimSpace(strings.TrimPrefix(text, "ARCHIVE_ORDER "))
+		if orderUUID == "" {
+			response = "❌ Укажите UUID заказа для архивирования\n\nПример: ARCHIVE_ORDER 12345678-1234-1234-1234-123456789abc"
+		} else {
+			err := ab.orderService.UpdateOrderStatus(orderUUID, "archived")
+			if err != nil {
+				response = fmt.Sprintf("❌ Ошибка архивирования заказа: %v", err)
 			} else {
-				err := ab.orderService.UpdateOrderStatus(orderUUID, "archived")
-				if err != nil {
-					response = fmt.Sprintf("❌ Ошибка архивирования заказа: %v", err)
-				} else {
-					response = fmt.Sprintf("✅ Заказ %s успешно архивирован!", orderUUID[:8])
-				}
+				response = fmt.Sprintf("✅ Заказ %s успешно архивирован!", orderUUID[:8])
 			}
-		} else if strings.HasPrefix(text, "ACTIVATE_ORDER ") {
-			orderUUID := strings.TrimSpace(strings.TrimPrefix(text, "ACTIVATE_ORDER "))
-			if orderUUID == "" {
-				response = "❌ Укажите UUID заказа для активации\n\nПример: ACTIVATE_ORDER 12345678-1234-1234-1234-123456789abc"
+		}
+	} else if strings.HasPrefix(text, "ACTIVATE_ORDER ") {
+		orderUUID := strings.TrimSpace(strings.TrimPrefix(text, "ACTIVATE_ORDER "))
+		if orderUUID == "" {
+			response = "❌ Укажите UUID заказа для активации\n\nПример: ACTIVATE_ORDER 12345678-1234-1234-1234-123456789abc"
+		} else {
+			err := ab.orderService.UpdateOrderStatus(orderUUID, "active")
+			if err != nil {
+				response = fmt.Sprintf("❌ Ошибка активации заказа: %v", err)
 			} else {
-				err := ab.orderService.UpdateOrderStatus(orderUUID, "active")
-				if err != nil {
-					response = fmt.Sprintf("❌ Ошибка активации заказа: %v", err)
-				} else {
-					response = fmt.Sprintf("✅ Заказ %s успешно активирован!", orderUUID[:8])
-				}
+				response = fmt.Sprintf("✅ Заказ %s успешно активирован!", orderUUID[:8])
 			}
 		}
 	}

@@ -1,5 +1,9 @@
 package domain
 
+import (
+	"github.com/google/uuid"
+)
+
 // OrderRepository определяет интерфейс для работы с заказами
 type OrderRepository interface {
 	CreateOrder(order *Order) error
@@ -25,4 +29,10 @@ type CustomerRepository interface {
 type DriverRepository interface {
 	GetDriversCount() (int, error)
 	GetAllDrivers() ([]Driver, error)
+}
+
+// CityRepository определяет интерфейс для работы с городами
+type CityRepository interface {
+	GetCityByName(cityName string) (*City, error)
+	GetCityByUUID(cityUUID uuid.UUID) (*City, error)
 }

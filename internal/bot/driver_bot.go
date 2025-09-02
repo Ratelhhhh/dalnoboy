@@ -22,10 +22,13 @@ type DriverBot struct {
 }
 
 // NewDriverBot создает новый экземпляр бота для водителей
-func NewDriverBot(config *internal.Config, db *database.Database) (*DriverBot, error) {
+func NewDriverBot(config *internal.Config, db *database.Database, orderService *service.OrderService) (*DriverBot, error) {
+	log.Printf("Инициализация бота для водителей с токеном: %s...", config.Bot.DriverToken[:10]+"...")
+
 	bot, err := tgbotapi.NewBotAPI(config.Bot.DriverToken)
 	if err != nil {
-		return nil, err
+		log.Printf("Ошибка создания бота: %v", err)
+		return nil, fmt.Errorf("ошибка создания бота для водителей: %v", err)
 	}
 
 	log.Printf("Бот для водителей %s запущен", bot.Self.UserName)
@@ -33,7 +36,7 @@ func NewDriverBot(config *internal.Config, db *database.Database) (*DriverBot, e
 	return &DriverBot{
 		bot:          bot,
 		database:     db,
-		orderService: service.NewOrderService(db),
+		orderService: orderService,
 	}, nil
 }
 

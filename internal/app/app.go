@@ -18,13 +18,15 @@ import (
 
 // App представляет основное приложение
 type App struct {
-	Name         string
-	AdminBot     *bot.AdminBot
-	DriverBot    *bot.DriverBot
-	Database     *database.Database
-	Cache        cache.Cache
-	OrderService *service.OrderService
-	HTTPServer   *http.Server
+	Name            string
+	AdminBot        *bot.AdminBot
+	DriverBot       *bot.DriverBot
+	Database        *database.Database
+	Cache           cache.Cache
+	OrderService    *service.OrderService
+	CustomerService *service.CustomerService
+	DriverService   *service.DriverService
+	HTTPServer      *http.Server
 }
 
 // HealthResponse представляет ответ health check
@@ -113,18 +115,20 @@ func (a *App) Run() error {
 	a.Cache = redisCache
 	defer a.Cache.Close()
 
-	// Инициализация сервиса заказов
-	a.OrderService = service.NewOrderService(db)
+	// Инициализация сервисов
+	a.OrderService = service.NewOrderService(db, db)
+	a.CustomerService = service.NewCustomerService(db)
+	a.DriverService = service.NewDriverService(db)
 
 	// Инициализация админского бота
-	adminBot, err := bot.NewAdminBot(config, db)
+	adminBot, err := bot.NewAdminBot(config, db, a.OrderService, a.CustomerService, a.DriverService)
 	if err != nil {
 		return fmt.Errorf("ошибка инициализации админского бота: %v", err)
 	}
 	a.AdminBot = adminBot
 
 	// Инициализация бота для водителей
-	driverBot, err := bot.NewDriverBot(config, db)
+	driverBot, err := bot.NewDriverBot(config, db, a.OrderService)
 	if err != nil {
 		return fmt.Errorf("ошибка инициализации бота для водителей: %v", err)
 	}

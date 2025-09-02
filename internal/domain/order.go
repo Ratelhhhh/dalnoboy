@@ -35,3 +35,16 @@ type Order struct {
 	CustomerTelegramID  *int64     `json:"customer_telegram_id"`
 	CustomerTelegramTag *string    `json:"customer_telegram_tag"`
 }
+
+// CreateOrderTgRequest представляет упрощенный запрос на создание заказа через Telegram
+type CreateOrderTgRequest struct {
+	Title        string  `json:"title"`
+	Description  string  `json:"description"`
+	WeightKg     float64 `json:"weight_kg"`
+	FromCityName string  `json:"from_city_name"`
+	FromAddress  string  `json:"from_address"`
+	ToCityName   string  `json:"to_city_name"`
+	ToAddress    string  `json:"to_address"`
+	Price        float64 `json:"price"`
+	CustomerUUID string  `json:"customer_uuid"`
+}
