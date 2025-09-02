@@ -29,6 +29,8 @@ type CustomerRepository interface {
 type DriverRepository interface {
 	GetDriversCount() (int, error)
 	GetAllDrivers() ([]Driver, error)
+	GetDriverByTelegramID(telegramID int64) (*Driver, error)
+	CreateDriver(driver *Driver) error
 }
 
 // CityRepository определяет интерфейс для работы с городами

@@ -128,7 +128,7 @@ func (a *App) Run() error {
 	a.AdminBot = adminBot
 
 	// Инициализация бота для водителей
-	driverBot, err := bot.NewDriverBot(config, db, a.OrderService)
+	driverBot, err := bot.NewDriverBot(config, db, a.OrderService, a.DriverService)
 	if err != nil {
 		return fmt.Errorf("ошибка инициализации бота для водителей: %v", err)
 	}

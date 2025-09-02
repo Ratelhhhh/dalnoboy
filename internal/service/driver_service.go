@@ -4,6 +4,7 @@ import (
 	"dalnoboy/internal/database"
 	"dalnoboy/internal/domain"
 	"fmt"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -84,4 +85,38 @@ func (ds *DriverService) UpdateDriverCityAndNotifications(driverUUID uuid.UUID, 
 // GetCityByName возвращает город по названию
 func (ds *DriverService) GetCityByName(cityName string) (*domain.City, error) {
 	return ds.database.GetCityByName(cityName)
+}
+
+// GetDriverByTelegramID возвращает водителя по Telegram ID
+func (ds *DriverService) GetDriverByTelegramID(telegramID int64) (*domain.Driver, error) {
+	return ds.database.GetDriverByTelegramID(telegramID)
+}
+
+// CreateDriver создает водителя
+func (ds *DriverService) CreateDriver(name string, telegramID int64, telegramTag *string) (*domain.Driver, error) {
+	driver := &domain.Driver{
+		UUID:                uuid.New(),
+		Name:                name,
+		TelegramID:          telegramID,
+		TelegramTag:         telegramTag,
+		NotificationEnabled: false,
+		CityUUID:            nil,
+		CreatedAt:           time.Now(),
+	}
+	if err := ds.database.CreateDriver(driver); err != nil {
+		return nil, err
+	}
+	return driver, nil
+}
+
+// EnsureDriverExistsByTelegram auto-registers a driver if missing
+func (ds *DriverService) EnsureDriverExistsByTelegram(name string, telegramID int64, telegramTag *string) (*domain.Driver, error) {
+	existing, err := ds.GetDriverByTelegramID(telegramID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil {
+		return existing, nil
+	}
+	return ds.CreateDriver(name, telegramID, telegramTag)
 }

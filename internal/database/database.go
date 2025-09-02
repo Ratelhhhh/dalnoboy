@@ -757,6 +757,84 @@ func (d *Database) GetAllDrivers() ([]domain.Driver, error) {
 	return drivers, nil
 }
 
+// GetDriverByTelegramID возвращает водителя по Telegram ID
+func (d *Database) GetDriverByTelegramID(telegramID int64) (*domain.Driver, error) {
+	query := `
+		SELECT 
+			d.uuid,
+			d.name,
+			d.telegram_id,
+			d.telegram_tag,
+			d.notification_enabled,
+			d.city_uuid,
+			d.created_at,
+			c.name as city_name
+		FROM drivers d
+		LEFT JOIN cities c ON d.city_uuid = c.uuid
+		WHERE d.telegram_id = $1
+	`
+
+	var driver domain.Driver
+	var uuidStr string
+	var cityUUIDStr sql.NullString
+	err := d.DB.QueryRow(query, telegramID).Scan(
+		&uuidStr,
+		&driver.Name,
+		&driver.TelegramID,
+		&driver.TelegramTag,
+		&driver.NotificationEnabled,
+		&cityUUIDStr,
+		&driver.CreatedAt,
+		&driver.CityName,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("ошибка получения водителя по Telegram ID: %v", err)
+	}
+
+	parsedUUID, err := uuid.Parse(uuidStr)
+	if err != nil {
+		return nil, fmt.Errorf("ошибка парсинга UUID водителя: %v", err)
+	}
+	driver.UUID = parsedUUID
+
+	if cityUUIDStr.Valid && cityUUIDStr.String != "" {
+		parsedCityUUID, err := uuid.Parse(cityUUIDStr.String)
+		if err != nil {
+			return nil, fmt.Errorf("ошибка парсинга UUID города: %v", err)
+		}
+		driver.CityUUID = &parsedCityUUID
+	}
+
+	return &driver, nil
+}
+
+// CreateDriver создает нового водителя в базе данных
+func (d *Database) CreateDriver(driver *domain.Driver) error {
+	query := `
+		INSERT INTO drivers (
+			uuid, name, telegram_id, telegram_tag, notification_enabled, city_uuid, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`
+
+	_, err := d.DB.Exec(
+		query,
+		driver.UUID,
+		driver.Name,
+		driver.TelegramID,
+		driver.TelegramTag,
+		driver.NotificationEnabled,
+		driver.CityUUID,
+		driver.CreatedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("ошибка создания водителя: %v", err)
+	}
+	return nil
+}
+
 // GetCityByName возвращает город по названию
 func (d *Database) GetCityByName(cityName string) (*domain.City, error) {
 	query := `

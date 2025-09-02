@@ -16,13 +16,14 @@ import (
 
 // DriverBot представляет бота для водителей
 type DriverBot struct {
-	bot          *tgbotapi.BotAPI
-	database     *database.Database
-	orderService *service.OrderService
+	bot           *tgbotapi.BotAPI
+	database      *database.Database
+	orderService  *service.OrderService
+	driverService *service.DriverService
 }
 
 // NewDriverBot создает новый экземпляр бота для водителей
-func NewDriverBot(config *internal.Config, db *database.Database, orderService *service.OrderService) (*DriverBot, error) {
+func NewDriverBot(config *internal.Config, db *database.Database, orderService *service.OrderService, driverService *service.DriverService) (*DriverBot, error) {
 	log.Printf("Инициализация бота для водителей с токеном: %s...", config.Bot.DriverToken[:10]+"...")
 
 	bot, err := tgbotapi.NewBotAPI(config.Bot.DriverToken)
@@ -34,9 +35,10 @@ func NewDriverBot(config *internal.Config, db *database.Database, orderService *
 	log.Printf("Бот для водителей %s запущен", bot.Self.UserName)
 
 	return &DriverBot{
-		bot:          bot,
-		database:     db,
-		orderService: orderService,
+		bot:           bot,
+		database:      db,
+		orderService:  orderService,
+		driverService: driverService,
 	}, nil
 }
 
@@ -189,6 +191,21 @@ func (db *DriverBot) splitMessage(text string, maxLength int) []string {
 func (db *DriverBot) handleMessage(message *tgbotapi.Message) {
 	text := message.Text
 	chatID := message.Chat.ID
+
+	// Автоматическая регистрация водителя по первому контакту с ботом
+	telegramID := message.From.ID
+	var tag *string
+	if message.From.UserName != "" {
+		uname := "@" + message.From.UserName
+		tag = &uname
+	}
+	name := strings.TrimSpace(message.From.FirstName + " " + message.From.LastName)
+	if name == "" {
+		name = message.From.UserName
+	}
+	if _, err := db.driverService.EnsureDriverExistsByTelegram(name, telegramID, tag); err != nil {
+		log.Printf("Не удалось авто-регистрировать водителя %d: %v", telegramID, err)
+	}
 
 	var response string
 	var keyboard tgbotapi.ReplyKeyboardMarkup
